@@ -1,0 +1,81 @@
+<!doctype html>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+        <meta
+            http-equiv="Content-Security-Policy"
+            content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
+        />
+
+        <meta
+            name="viewport"
+            content="width=device-width, initial-scale=1, user-scalable=no"
+        />
+        <style>
+            .heading {
+                display: flex; /*テキストと2本の線を横並びさせる指定*/
+                justify-content: center; /*テキストと2本の線を左右中央配置*/
+                align-items: center; /*テキストと2本の線を上下中央配置*/
+                font-size: 32px;
+            }
+
+            .heading::before,
+            .heading::after {
+                content: "";
+                width: 3px;
+                height: 40px;
+                background-color: #e5c046;
+            }
+
+            .heading::before {
+                margin-right: 30px;
+                transform: rotate(-35deg); /*線を-35°回転させる*/
+            }
+
+            .heading::after {
+                margin-left: 30px;
+                transform: rotate(35deg); /*線を35°回転させる*/
+            }
+        </style>
+        <link rel="stylesheet" href="../Style.css" />
+    </head>
+    <body>
+        <p
+            class="heading"
+            style="margin-top: 8px; font-size: 14px; color: #007aff"
+        >
+            アイコンをタップして設定を開く
+        </p>
+        <img
+            src="../Icon.png"
+            width="128"
+            height="128"
+            alt="FuriFuri Icon"
+            id="app-icon"
+            style="cursor: pointer"
+        />
+        <p>Safariで「FuriFuri Extention」を追加してください。</p>
+        <p style="margin-top: 16px; font-size: 13px">
+            <a href="#" id="open-licenses" style="color: #6e6e73"
+                >ライセンス情報</a
+            >
+        </p>
+        <script>
+            document
+                .getElementById("app-icon")
+                .addEventListener("click", function () {
+                    window.webkit.messageHandlers.controller.postMessage({
+                        action: "openOptions",
+                    });
+                });
+            document
+                .getElementById("open-licenses")
+                .addEventListener("click", function (e) {
+                    e.preventDefault();
+                    window.webkit.messageHandlers.controller.postMessage({
+                        action: "openLicenses",
+                    });
+                });
+        </script>
+    </body>
+</html>

@@ -1,0 +1,10 @@
+{
+    "extension_name": {
+        "message": "FuriFuri Extension",
+        "description": "The display name for the extension."
+    },
+    "extension_description": {
+        "message": "Adds furigana (reading annotations) to kanji on Japanese web pages.",
+        "description": "Description of what the extension does."
+    }
+}

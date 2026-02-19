@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+
+    <link rel="stylesheet" href="../Style.css">
+</head>
+<body>
+    <img src="../Icon.png" width="128" height="128" alt="FuriFuri Icon" id="app-icon" style="cursor: pointer;">
+    <p style="margin-top: 8px; font-size: 14px; color: #007aff;">Tap icon to open settings</p>
+    <p>You can turn on FuriFuri's Safari extension in Settings.</p>
+    <p style="margin-top: 16px; font-size: 13px;"><a href="#" id="open-licenses" style="color: #6e6e73;">Licenses</a></p>
+    <script>
+    document.getElementById('app-icon').addEventListener('click', function() {
+        window.webkit.messageHandlers.controller.postMessage({ action: 'openOptions' });
+    });
+    document.getElementById('open-licenses').addEventListener('click', function(e) {
+        e.preventDefault();
+        window.webkit.messageHandlers.controller.postMessage({ action: 'openLicenses' });
+    });
+    </script>
+</body>
+</html>

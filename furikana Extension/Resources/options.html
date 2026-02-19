@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふりがな設定</title>
+    <link rel="stylesheet" href="options.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ふりがな機能拡張 - 設定</h1>
+            <button id="save-settings" class="btn-primary">設定を保存</button>
+        </div>
+
+        <!-- 辞書選択セクション -->
+        <section class="section">
+            <h2>辞書設定</h2>
+            <p class="description">
+                解析に使用する辞書を選択してください。
+            </p>
+
+            <div class="dictionary-list">
+                <!-- システム解析 -->
+                <label class="dictionary-item dict-radio-label">
+                    <input type="radio" name="dictType" value="system">
+                    <div class="dict-info">
+                        <h3>システム解析</h3>
+                        <p class="dict-description">iOS標準の日本語解析を使用（軽量・高速）</p>
+                    </div>
+                </label>
+
+                <!-- IPA辞書 -->
+                <label class="dictionary-item dict-radio-label">
+                    <input type="radio" name="dictType" value="ipadic">
+                    <div class="dict-info">
+                        <h3>IPA辞書（内蔵）</h3>
+                        <p class="dict-size">17 MB</p>
+                        <p class="dict-description">初回読み込みに数秒かかります</p>
+                    </div>
+                </label>
+
+                <!-- UniDic（準備中） -->
+                <label class="dictionary-item dict-radio-label disabled">
+                    <input type="radio" name="dictType" value="unidic" disabled>
+                    <div class="dict-info">
+                        <h3>UniDic</h3>
+                        <p class="dict-description">準備中</p>
+                    </div>
+                </label>
+            </div>
+        </section>
+
+        <!-- 表示設定セクション -->
+        <section class="section">
+            <h2>表示設定</h2>
+
+            <div class="setting-item">
+                <label for="reading-type">読み仮名の種類</label>
+                <select id="reading-type">
+                    <option value="hiragana">ひらがな</option>
+                    <option value="romaji">ローマ字</option>
+                </select>
+            </div>
+
+            <div class="setting-item">
+                <label for="unit-type">単位</label>
+                <select id="unit-type">
+                    <option value="long">長単位（推奨）</option>
+                    <option value="short">短単位</option>
+                </select>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-item setting-half">
+                    <label for="ruby-size">ルビサイズ: <span id="ruby-size-value">50</span>%</label>
+                    <input type="range" id="ruby-size" min="30" max="100" step="5" value="50">
+                </div>
+                <div class="setting-item setting-half">
+                    <label for="ruby-gap">ルビ行間隔: <span id="ruby-gap-value">1</span>px</label>
+                    <input type="range" id="ruby-gap" min="0" max="16" step="1" value="1">
+                </div>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-item setting-half">
+                    <label for="ruby-line-height">行高さ: <span id="ruby-line-height-value">1.30</span></label>
+                    <input type="range" id="ruby-line-height" min="1.0" max="3.0" step="0.05" value="1.3">
+                </div>
+                <div class="setting-item setting-half">
+                    <label for="ruby-min-height">行間隔: <span id="ruby-min-height-value">12</span>px</label>
+                    <input type="range" id="ruby-min-height" min="0" max="60" step="2" value="12">
+                </div>
+            </div>
+
+            <div class="setting-row">
+                <div class="setting-item setting-half">
+                    <label for="ruby-box-padding">ボックスpadding: <span id="ruby-box-padding-value">0.0</span>em</label>
+                    <input type="range" id="ruby-box-padding" min="-2.0" max="4.0" step="0.05" value="0">
+                </div>
+                <div class="setting-item setting-half">
+                    <label for="ruby-box-margin">ボックスmargin: <span id="ruby-box-margin-value">0.0</span>em</label>
+                    <input type="range" id="ruby-box-margin" min="-2.0" max="4.0" step="0.05" value="0">
+                </div>
+            </div>
+
+            <div class="setting-item" style="text-align: right;">
+                <button id="reset-sliders" class="btn-reset">リセット</button>
+            </div>
+
+            <div class="ruby-preview">
+                <p><ruby>漢字<rt>かんじ</rt></ruby>の<ruby>読<rt>よ</rt></ruby>み<ruby>仮名<rt>がな</rt></ruby>を<ruby>表示<rt>ひょうじ</rt></ruby>します。</p>
+                <p><ruby>東京<rt>とうきょう</rt></ruby>タワーに<ruby>行<rt>い</rt></ruby>きました。</p>
+            </div>
+
+            <hr style="border: none; border-top: 1px solid #e5e5e7; margin: 16px 0;">
+
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" id="auto-enable">
+                    ページ読み込み時に自動的にふりがなを表示
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" id="reverse-ruby">
+                    ひらがなメインモード
+                </label>
+            </div>
+
+            <div class="setting-item">
+                <label>
+                    <input type="checkbox" id="reading-rules">
+                    読み補正ルールを適用（ルールベース）
+                </label>
+            </div>
+        </section>
+
+    </div>
+
+    <script src="options.js"></script>
+</body>
+</html>

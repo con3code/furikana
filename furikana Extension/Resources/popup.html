@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ふりがな</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="popup-container">
+<!--        <h1>ふりがな</h1>
+-->
+        <div class="toggle-section">
+            <button id="toggle-furigana" class="btn-toggle">
+                <span id="toggle-text">ふりがなを表示</span>
+            </button>
+        </div>
+
+        <div class="status-section">
+            <p id="status-text">準備完了</p>
+        </div>
+
+        <div class="quick-settings">
+            <div class="quick-setting-item">
+                <label for="popup-ruby-size">ルビサイズ: <span id="popup-ruby-size-value">50</span>%</label>
+                <input type="range" id="popup-ruby-size" min="30" max="100" step="5" value="50">
+            </div>
+            <div class="quick-setting-item">
+                <label>
+                    <input type="checkbox" id="popup-auto-enable">
+                    自動ふりがな
+                </label>
+            </div>
+            <div class="quick-setting-item">
+                <label>
+                    <input type="checkbox" id="popup-reverse-ruby">
+                    ひらがなメイン
+                </label>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="settings-link">
+            <button id="open-settings" class="btn-link">設定を開く</button>
+        </div>
+    </div>
+
+    <script type="module" src="popup.js"></script>
+</body>
+</html>
