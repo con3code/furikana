@@ -173,6 +173,7 @@
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 2630;
 				LastUpgradeCheck = 2630;
+				ORGANIZATIONNAME = con3code;
 				TargetAttributes = {
 					24D02A082F40E4AD002F902B = {
 						CreatedOnToolsVersion = 26.3;
@@ -251,7 +252,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "furikana Extension/furikana_Extension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "furikana Extension/Info.plist";
@@ -285,7 +286,7 @@
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = "furikana Extension/furikana_Extension.entitlements";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "furikana Extension/Info.plist";
@@ -321,7 +322,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = furikana/furikana.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = furikana/Info.plist;
@@ -363,7 +364,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = furikana/furikana.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 5;
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = furikana/Info.plist;

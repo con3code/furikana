@@ -64,7 +64,9 @@ function updatePreview() {
             rt.style.insetBlockStart = '100%';
             rt.style.insetInlineStart = '0';
             rt.style.fontSize = rtSize + '%';
-            rt.style.paddingBlockStart = gap;
+            rt.style.marginBlockStart = gap;
+            rt.style.marginBlockEnd = '';
+            rt.style.paddingBlockStart = '';
             rt.style.paddingBlockEnd = '';
         } else {
             // 通常モード: Safariネイティブruby配置（rtが上）
@@ -77,7 +79,9 @@ function updatePreview() {
             rt.style.insetBlockStart = '';
             rt.style.insetInlineStart = '';
             rt.style.fontSize = '';
-            rt.style.paddingBlockEnd = gap;
+            rt.style.marginBlockEnd = gap;
+            rt.style.marginBlockStart = '';
+            rt.style.paddingBlockEnd = '';
             rt.style.paddingBlockStart = '';
         }
 
@@ -143,20 +147,28 @@ async function loadSettings() {
 async function saveSettings() {
     const dictRadio = document.querySelector('input[name="dictType"]:checked');
 
-    await browser.storage.local.set({
-        readingType: document.getElementById('reading-type').value,
-        unitType: document.getElementById('unit-type').value,
-        autoEnable: document.getElementById('auto-enable').checked,
-        reverseRuby: document.getElementById('reverse-ruby').checked,
-        readingRules: document.getElementById('reading-rules').checked,
-        dictType: dictRadio ? dictRadio.value : 'system',
-        rubySize: parseInt(document.getElementById('ruby-size').value, 10),
-        rubyGap: parseInt(document.getElementById('ruby-gap').value, 10),
-        rubyLineHeight: parseFloat(document.getElementById('ruby-line-height').value),
-        rubyMinHeight: parseInt(document.getElementById('ruby-min-height').value, 10),
-        rubyBoxPadding: parseFloat(document.getElementById('ruby-box-padding').value),
-        rubyBoxMargin: parseFloat(document.getElementById('ruby-box-margin').value)
-    });
+    try {
+        await browser.storage.local.set({
+            readingType: document.getElementById('reading-type').value,
+            unitType: document.getElementById('unit-type').value,
+            autoEnable: document.getElementById('auto-enable').checked,
+            reverseRuby: document.getElementById('reverse-ruby').checked,
+            readingRules: document.getElementById('reading-rules').checked,
+            dictType: dictRadio ? dictRadio.value : 'system',
+            rubySize: parseInt(document.getElementById('ruby-size').value, 10),
+            rubyGap: parseInt(document.getElementById('ruby-gap').value, 10),
+            rubyLineHeight: parseFloat(document.getElementById('ruby-line-height').value),
+            rubyMinHeight: parseInt(document.getElementById('ruby-min-height').value, 10),
+            rubyBoxPadding: parseFloat(document.getElementById('ruby-box-padding').value),
+            rubyBoxMargin: parseFloat(document.getElementById('ruby-box-margin').value)
+        });
+    } catch (e) {
+        console.error('Save failed:', e);
+    }
+
+    // storage.onChanged が発火する時間を確保してから画面遷移
+    await new Promise(resolve => setTimeout(resolve, 200));
+
     // WKWebView（ホストアプリ）内なら goBack、拡張機能内なら window.close()
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.controller) {
         window.webkit.messageHandlers.controller.postMessage({ action: 'goBack' });
@@ -196,11 +208,31 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         document.getElementById('reverse-ruby').addEventListener('change', () => {
             updatePreview();
-            browser.storage.local.set({ reverseRuby: document.getElementById('reverse-ruby').checked });
+            browser.storage.local.set({ reverseRuby: document.getElementById('reverse-ruby').checked }).catch(e => console.error('Save error:', e));
         });
 
         document.getElementById('reading-rules').addEventListener('change', () => {
-            browser.storage.local.set({ readingRules: document.getElementById('reading-rules').checked });
+            browser.storage.local.set({ readingRules: document.getElementById('reading-rules').checked }).catch(e => console.error('Save error:', e));
+        });
+
+        document.getElementById('reading-type').addEventListener('change', () => {
+            browser.storage.local.set({ readingType: document.getElementById('reading-type').value }).catch(e => console.error('Save error:', e));
+        });
+
+        document.getElementById('unit-type').addEventListener('change', () => {
+            browser.storage.local.set({ unitType: document.getElementById('unit-type').value }).catch(e => console.error('Save error:', e));
+        });
+
+        // 辞書タイプ（ラジオボタン）
+        document.querySelectorAll('input[name="dictType"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                browser.storage.local.set({ dictType: radio.value }).catch(e => console.error('Save error:', e));
+            });
+        });
+
+        // 自動有効化
+        document.getElementById('auto-enable').addEventListener('change', () => {
+            browser.storage.local.set({ autoEnable: document.getElementById('auto-enable').checked }).catch(e => console.error('Save error:', e));
         });
 
         document.getElementById('save-settings').addEventListener('click', saveSettings);

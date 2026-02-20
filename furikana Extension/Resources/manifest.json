@@ -7,8 +7,8 @@
     "version": "1.0",
 
     "icons": {
-        "48": "images/icon-48.png",
-        "96": "images/icon-96.png",
+        "40": "images/icon-40.png",
+        "76": "images/icon-76.png",
         "128": "images/icon-128.png",
         "256": "images/icon-256.png",
         "512": "images/icon-512.png"
@@ -32,7 +32,7 @@
 
     "action": {
         "default_popup": "popup.html",
-        "default_icon": "images/toolbar-icon.svg"
+        "default_icon": "images/toolbar-icon_off.svg"
     },
 
     "options_page": "options.html",

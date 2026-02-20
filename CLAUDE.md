@@ -11,10 +11,10 @@ Two display modes: **通常モード** (Safari native ruby — rt above kanji) a
 ## Build
 
 ```bash
-xcodebuild -scheme furikana build
+xcodebuild -scheme FuriFuri build -destination 'generic/platform=iOS'
 ```
 
-Two targets: `furikana` (iOS host app) and `furikana Extension` (Safari web extension). Building the scheme builds both. No test suite or linter is configured. Xcode project is `FuriFuri.xcodeproj`.
+Two targets: `FuriFuri` (iOS host app) and `FuriFuri Extension` (Safari web extension). Building the scheme builds both. No test suite or linter is configured. Xcode project is `FuriFuri.xcodeproj`.
 
 `furikana Extension/Resources/` uses PBXFileSystemSynchronizedRootGroup — files added to this directory are automatically picked up by Xcode without pbxproj edits.
 

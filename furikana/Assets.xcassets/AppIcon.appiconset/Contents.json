@@ -1,7 +1,7 @@
 {
   "images" : [
     {
-      "filename" : "ふりがな-iOS-Default-1024x1024@1x.png",
+      "filename" : "背景ふりがな-iOS-Default-1024x1024@1x 1.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -13,7 +13,7 @@
           "value" : "dark"
         }
       ],
-      "filename" : "ふりがな-iOS-Dark-1024x1024@1x.png",
+      "filename" : "背景ふりがな-iOS-Dark-1024x1024@1x 1.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"
@@ -25,7 +25,7 @@
           "value" : "tinted"
         }
       ],
-      "filename" : "ふりがな-iOS-TintedLight-1024x1024@1x.png",
+      "filename" : "背景ふりがな-iOS-TintedLight-1024x1024@1x.png",
       "idiom" : "universal",
       "platform" : "ios",
       "size" : "1024x1024"

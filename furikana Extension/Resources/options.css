@@ -136,8 +136,9 @@ button {
 .btn-primary {
     background-color: #007aff;
     color: white;
-    padding: 10px 28px;
+    padding: 10px 20px;
     font-size: 15px;
+    white-space: nowrap;
 }
 
 .btn-primary:hover {

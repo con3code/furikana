@@ -140,12 +140,33 @@ try {
             return true; // 非同期レスポンスを許可
         }
 
+        // バッチトークン化: 複数テキストを一括処理
+        if (request.action === 'tokenizeBatch') {
+            handleTokenizeBatchRequest(request)
+                .then(result => sendResponse(result))
+                .catch(error => {
+                    console.error("[Furikana] Batch tokenization error:", error);
+                    sendResponse({ success: false, error: error.message });
+                });
+
+            return true;
+        }
+
         // App Group から設定を同期（content.js の visibilitychange から呼ばれる）
         if (request.action === 'syncAppGroup') {
             syncFromAppGroup()
                 .then(() => sendResponse({ success: true }))
                 .catch(() => sendResponse({ success: false }));
             return true;
+        }
+
+        // ツールバーアイコン切り替え
+        if (request.action === 'updateIcon') {
+            const icon = request.enabled ? 'images/toolbar-icon_on.svg' : 'images/toolbar-icon_off.svg';
+            if (sender.tab && sender.tab.id != null) {
+                browser.action.setIcon({ tabId: sender.tab.id, path: icon });
+            }
+            return false;
         }
 
         // 辞書ファイル読み込み: content.js(kuromoji) → ここ → Swift
@@ -176,6 +197,61 @@ try {
             return await tryNativeTokenization(request)
                 || fallbackTokenize(request);
         }
+    }
+
+    // --- バッチトークン化 ---
+    async function handleTokenizeBatchRequest(request) {
+        const texts = request.texts;
+        if (!texts || !Array.isArray(texts) || texts.length === 0) {
+            return { success: false, error: 'No texts provided' };
+        }
+
+        const settings = await browser.storage.local.get({ dictType: 'system' });
+        const dictType = settings.dictType;
+        const dictSource = dictType === 'ipadic' ? 'ipadic' : 'system';
+
+        console.log(`[Furikana] Batch tokenize: ${texts.length} texts, dict: ${dictType}`);
+
+        if (dictType === 'ipadic') {
+            // kuromoji バッチ → native バッチフォールバック
+            try {
+                const tokenizer = await initKuromoji();
+                const results = texts.map(text => {
+                    try {
+                        const kTokens = tokenizer.tokenize(text);
+                        const tokens = convertKuromojiTokens(kTokens, 0);
+                        return { tokens, dictSource: 'ipadic' };
+                    } catch (e) {
+                        return { tokens: null, dictSource: null };
+                    }
+                });
+                return { success: true, results };
+            } catch (kuromojiError) {
+                console.warn('[Furikana] kuromoji batch failed, trying native:', kuromojiError);
+            }
+        }
+
+        // native バッチ (system または kuromoji フォールバック)
+        try {
+            await Promise.resolve(); // onMessage の同期処理を抜ける
+            const response = await browser.runtime.sendNativeMessage('con3.furikana', {
+                action: 'tokenizeBatch',
+                texts: texts
+            });
+
+            if (response && response.success && response.results) {
+                const results = response.results.map(r => ({
+                    tokens: r.success ? r.tokens : null,
+                    dictSource: r.success ? 'system' : null
+                }));
+                return { success: true, results };
+            }
+        } catch (nativeError) {
+            console.error('[Furikana] Native batch tokenize failed:', nativeError);
+        }
+
+        // 全体失敗
+        return { success: false, error: 'Batch tokenization failed' };
     }
 
     // kuromoji でトークン化を試みる

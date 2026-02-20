@@ -32,19 +32,29 @@ class RequestQueue {
         this.running = 0;                     // 現在実行中のリクエスト数
         this.queue = [];                      // 待機中のリクエスト
         this.errorCount = 0;                  // 連続エラー回数
-        this.fallbackMode = false;            // フォールバックモードフラグ
-        this.errorThreshold = 10;             // エラー閾値（3→10に増加）
+        this.errorThreshold = 10;             // エラー閾値
         this.totalRequests = 0;               // 総リクエスト数
         this.successfulRequests = 0;          // 成功したリクエスト数
         this.intervalDelay = intervalDelay;   // リクエスト間の遅延（ミリ秒）
+
+        // クールダウン方式（永続フォールバックの代替）
+        this.cooldownUntil = 0;               // クールダウン終了タイムスタンプ
+        this.cooldownMs = 0;                  // 現在のクールダウン時間
+        this.baseCooldownMs = 3000;           // 初回クールダウン（3秒）
+        this.maxCooldownMs = 30000;           // 最大クールダウン（30秒）
     }
 
     // リクエストをキューに追加
     async enqueue(fn) {
-        // フォールバックモードの場合、ネイティブリクエストをスキップ
-        if (this.fallbackMode) {
-            console.log('[Furikana] Fallback mode active, skipping native request');
-            return null;
+        // クールダウン中はスキップ
+        if (this.cooldownUntil > 0) {
+            if (Date.now() < this.cooldownUntil) {
+                return null;
+            }
+            // クールダウン明け: エラーカウントをリセットしてリトライ許可
+            console.log('[Furikana] Cooldown expired, resuming native messaging');
+            this.errorCount = 0;
+            this.cooldownUntil = 0;
         }
 
         return new Promise((resolve, reject) => {
@@ -73,9 +83,10 @@ class RequestQueue {
         try {
             const result = await fn();
 
-            // 成功した場合、エラーカウントをリセット
+            // 成功した場合、エラーカウントとクールダウンをリセット
             if (result !== null) {
                 this.errorCount = 0;
+                this.cooldownMs = 0;
                 this.successfulRequests++;
             } else {
                 this.errorCount++;
@@ -88,14 +99,17 @@ class RequestQueue {
             this.errorCount++;
             console.error(`[Furikana] Request failed (error count: ${this.errorCount}/${this.errorThreshold}):`, error);
 
-            // エラー閾値を超えた場合、フォールバックモードに切り替え
+            // エラー閾値到達: クールダウンに入る（指数バックオフ）
             if (this.errorCount >= this.errorThreshold) {
-                console.error(`[Furikana] Error threshold reached! Switching to fallback mode`);
-                console.error(`[Furikana] Stats: ${this.successfulRequests}/${this.totalRequests} successful requests`);
-                console.error('[Furikana] Remaining queue items will use fallback tokenization:', this.queue.length);
-                this.fallbackMode = true;
+                this.cooldownMs = this.cooldownMs === 0
+                    ? this.baseCooldownMs
+                    : Math.min(this.cooldownMs * 2, this.maxCooldownMs);
+                this.cooldownUntil = Date.now() + this.cooldownMs;
 
-                // 待機中のすべてのリクエストをキャンセル
+                console.warn(`[Furikana] Error threshold reached, cooldown ${this.cooldownMs}ms (until ${new Date(this.cooldownUntil).toLocaleTimeString()})`);
+                console.warn(`[Furikana] Stats: ${this.successfulRequests}/${this.totalRequests} successful requests`);
+
+                // 待機中のリクエストをキャンセル（クールダウン明けに再スキャンされる）
                 this.queue.forEach(item => item.resolve(null));
                 this.queue = [];
             }
@@ -119,14 +133,15 @@ class RequestQueue {
         this.queue = [];
         this.running = 0;
         this.errorCount = 0;
-        this.fallbackMode = false;
+        this.cooldownUntil = 0;
+        this.cooldownMs = 0;
         this.totalRequests = 0;
         this.successfulRequests = 0;
     }
 
-    // フォールバックモードかどうか
+    // クールダウン中かどうか
     isFallbackMode() {
-        return this.fallbackMode;
+        return this.cooldownUntil > 0 && Date.now() < this.cooldownUntil;
     }
 }
 
@@ -218,18 +233,63 @@ class VisibleTextProcessor {
 
         try {
             while (this.pending.length > 0 && this.running) {
+                // クールダウン中はバッチ処理を一時停止し、クールダウン明けに再開
+                if (requestQueue.isFallbackMode()) {
+                    const remaining = requestQueue.cooldownUntil - Date.now();
+                    if (remaining > 0) {
+                        console.log(`[Furikana] Pausing batch processing during cooldown (${Math.ceil(remaining / 1000)}s)`);
+                        await new Promise(resolve => setTimeout(resolve, remaining + 100));
+                    }
+                    // クールダウン明け → 未処理ノードを再スキャンで拾い直す
+                    console.log('[Furikana] Cooldown ended, scheduling rescan for retry');
+                    // pending を一旦クリアして queuedNodes も解除（再スキャンで拾い直す）
+                    for (const node of this.pending) {
+                        this.queuedNodes.delete(node);
+                    }
+                    this.pending = [];
+                    this.processing = false;
+                    this.scanVisibleTextNodes();
+                    return;
+                }
+
+                // バッチ内のノードを収集
                 const batchCount = Math.min(this.batchSize, this.pending.length);
+                const batch = [];
                 for (let i = 0; i < batchCount; i++) {
                     const node = this.pending.shift();
                     if (!node || !node.parentElement || !node.isConnected) {
+                        this.queuedNodes.delete(node);
                         continue;
                     }
+                    const text = node.nodeValue;
+                    if (!containsKanji(text)) {
+                        this.queuedNodes.delete(node);
+                        continue;
+                    }
+                    batch.push({ node, text });
+                }
 
-                    const ok = await addFuriganaToNode(node);
+                if (batch.length === 0) continue;
+
+                // バッチトークン化リクエスト（1回の通信で全テキストを送信）
+                const gen = furikanaGeneration;
+                let batchResults = null;
+                if (!requestQueue.isFallbackMode()) {
+                    batchResults = await sendBatchTokenize(batch.map(b => b.text));
+                }
+
+                // 各ノードにトークンを適用（DOM操作のみ、通信なし）
+                for (let i = 0; i < batch.length; i++) {
+                    const { node, text } = batch[i];
+                    const result = batchResults ? batchResults[i] : null;
+                    const tokens = result ? result.tokens : null;
+                    const dictSource = result ? result.dictSource : null;
+                    const ok = applyTokensToNode(node, text, tokens, dictSource, gen);
                     this.queuedNodes.delete(node);
                     if (ok) {
                         this.processedNodes.add(node);
                     }
+                    // 失敗時は processedNodes に入れない → 次のスキャンで再取得
                 }
 
                 if (this.pending.length > 0) {
@@ -277,19 +337,18 @@ function applyRubyCSS() {
       white-space: nowrap !important;
       line-height: 1 !important;
       font-size: ${rtSize}% !important;
-      padding-block-start: ${rubyGap}px !important;
+      margin-block-start: ${rubyGap}px !important;
       pointer-events: none;
     }` : `
     .furikana-ruby {
       vertical-align: baseline !important;
       align-items: start !important;
       min-block-size: var(--furikana-ruby-min-height) !important;
-      white-space: nowrap;
     }
 
     .furikana-ruby > .furikana-rt {
       font-size: var(--furikana-ruby-size) !important;
-      padding-block-end: ${rubyGap}px !important;
+      margin-block-end: ${rubyGap}px !important;
       pointer-events: none;
     }`;
 
@@ -305,6 +364,12 @@ function applyRubyCSS() {
 
     .furikana-line {
       line-height: calc(var(--furikana-line-height) * 1em + var(--furikana-ruby-gap)) !important;
+    }
+
+    .furikana-overflow-expand {
+      overflow: visible !important;
+      -webkit-line-clamp: unset !important;
+      max-height: none !important;
     }
     ${rubyCSS}`;
 }
@@ -322,7 +387,9 @@ function getInlineSize(el, vertical) {
 }
 
 // ruby と rt の inline サイズを比較し、大きい方に合わせる
+// 逆転モード専用（通常モードでは Safari の native ruby が自動で幅を調整する）
 function alignRubyWidths(container) {
+    if (!settings.reverseRuby) return;
     const vertical = isVerticalWriting(container);
     const rubies = container.querySelectorAll('.furikana-ruby');
     rubies.forEach(ruby => {
@@ -341,7 +408,9 @@ function alignRubyWidths(container) {
 }
 
 // 既存の全 ruby 要素の inline サイズを再調整
+// 逆転モード専用（通常モードでは Safari の native ruby が自動で幅を調整する）
 function realignAllRubyWidths() {
+    if (!settings.reverseRuby) return;
     // furikana-line 親ごとにグルーピングして writing-mode 判定を最小化
     const lines = document.querySelectorAll('.furikana-line');
     lines.forEach(line => {
@@ -476,6 +545,7 @@ function markLineContainer(startElement) {
             el.classList.add('furikana-line');
             applyLinePadding(el);
             applyLineMargin(el);
+            expandOverflowAncestors(el);
             return;
         }
         if (!candidate && (el.tagName === 'A' || el.tagName === 'P')) {
@@ -490,7 +560,97 @@ function markLineContainer(startElement) {
         target.classList.add('furikana-line');
         applyLinePadding(target);
         applyLineMargin(target);
+        // line-clamp がない場合は overflow 展開不要
+        // （テキストは切り詰められていないので祖先の overflow を変更するとレイアウトが崩れる）
     }
+}
+
+// overflow: hidden + 高さ制約がある祖先要素を拡張し、ルビによるはみ出しを防ぐ
+// 記事カード等の意味的境界要素を超えて走査しない
+const OVERFLOW_BOUNDARY_TAGS = new Set([
+    'ARTICLE', 'SECTION', 'MAIN', 'NAV', 'ASIDE', 'HEADER', 'FOOTER'
+]);
+
+function expandOverflowAncestors(target) {
+    // 祖先チェーンに境界タグがあるか事前チェック
+    // 境界タグがなければ target 自身のみ展開し、祖先には触れない
+    // （境界なしで祖先を展開すると、広告等の非関連コンテナまで影響する）
+    let hasBoundary = false;
+    let check = target.parentElement;
+    while (check && check !== document.body) {
+        if (OVERFLOW_BOUNDARY_TAGS.has(check.tagName)) {
+            hasBoundary = true;
+            break;
+        }
+        check = check.parentElement;
+    }
+
+    let el = target;
+    while (el && el !== document.body) {
+        const atBoundary = OVERFLOW_BOUNDARY_TAGS.has(el.tagName);
+
+        const style = window.getComputedStyle(el);
+
+        // flex/grid コンテナはスキップ（overflow: hidden がレイアウト制御用）
+        const display = style.display;
+        if (display === 'flex' || display === 'inline-flex'
+            || display === 'grid' || display === 'inline-grid') {
+            if (atBoundary) break;
+            if (!hasBoundary && el !== target) break;
+            el = el.parentElement;
+            continue;
+        }
+
+        const ov = style.overflow || style.overflowY;
+        if (ov === 'hidden' || ov === 'clip') {
+            const hasLineClamp = style.webkitLineClamp
+                && style.webkitLineClamp !== 'none'
+                && style.webkitLineClamp !== '0';
+            const hasFixedHeight = style.height !== 'auto'
+                && style.height !== '0px'
+                && !style.height.includes('%');
+            const hasMaxHeight = style.maxHeight
+                && style.maxHeight !== 'none';
+
+            if (hasLineClamp || hasFixedHeight || hasMaxHeight) {
+                if (!el.dataset.furikanaOverflowOriginal) {
+                    el.dataset.furikanaOverflowOriginal = JSON.stringify({
+                        overflow: el.style.overflow || '',
+                        height: el.style.height || '',
+                        maxHeight: el.style.maxHeight || '',
+                        webkitLineClamp: el.style.webkitLineClamp || '',
+                        webkitBoxOrient: el.style.webkitBoxOrient || '',
+                        display: el.style.display || ''
+                    });
+                }
+                el.classList.add('furikana-overflow-expand');
+            }
+        }
+
+        if (atBoundary) break;
+        // 境界タグがない場合は target 自身のみで終了
+        if (!hasBoundary && el !== target) break;
+        el = el.parentElement;
+    }
+}
+
+// expandOverflowAncestors で変更した要素を元に戻す
+function restoreOverflowAncestors() {
+    document.querySelectorAll('.furikana-overflow-expand').forEach(el => {
+        el.classList.remove('furikana-overflow-expand');
+        if (el.dataset.furikanaOverflowOriginal) {
+            const orig = JSON.parse(el.dataset.furikanaOverflowOriginal);
+            for (const [prop, val] of Object.entries(orig)) {
+                const cssProp = prop.replace(/([A-Z])/g, '-$1').toLowerCase();
+                if (val) {
+                    el.style[prop] = val;
+                } else {
+                    el.style.removeProperty(cssProp);
+                }
+            }
+            delete el.dataset.furikanaOverflowOriginal;
+        }
+    });
 }
 
 // 設定を読み込み
@@ -569,8 +729,10 @@ function getTextNodes(element) {
                         return NodeFilter.FILTER_REJECT;
                     }
 
-                    // RUBYタグの親チェックで処理済みテキストを除外
-                    // data-furigana-processed属性は使用しない
+                    // 広告ブロック内は除外（Yahoo等のストリーム広告）
+                    if (parent.closest('.yadsStream, [id^="STREAMAD"], [data-ad-region], [data-google-query-id]')) {
+                        return NodeFilter.FILTER_REJECT;
+                    }
                 }
                 return NodeFilter.FILTER_ACCEPT;
             }
@@ -790,68 +952,74 @@ function splitKanjiReading(surface, reading) {
     return [{ text: surface, reading }];
 }
 
-// テキストノードにふりがなを追加
-async function addFuriganaToNode(textNode) {
-    const text = textNode.nodeValue;
-    const gen = furikanaGeneration; // この時点の世代を記録
-
-    // 漢字を含まない場合はスキップ
-    if (!containsKanji(text)) {
-        return false;
+// バッチトークン化リクエスト（複数テキストを1回の通信で送信）
+async function sendBatchTokenize(texts) {
+    if (requestQueue.isFallbackMode()) return null;
+    try {
+        return await requestQueue.enqueue(async () => {
+            const response = await browser.runtime.sendMessage({
+                action: 'tokenizeBatch',
+                texts: texts
+            });
+            if (response && response.success && response.results) {
+                return response.results;
+            }
+            throw new Error('Batch tokenize unsuccessful');
+        });
+    } catch (error) {
+        console.error('[Furikana] Batch tokenize failed:', error);
+        return null;
     }
+}
+
+// ユニットのrange（元テキスト中の位置）を取得
+function getUnitRange(unit) {
+    if (unit.tokens && unit.tokens.length > 0) {
+        return [unit.tokens[0].range[0], unit.tokens[unit.tokens.length - 1].range[1]];
+    }
+    return null;
+}
+
+// トークン配列からルビを構築してDOMに適用（通信なし）
+function applyTokensToNode(textNode, text, tokens, dictSource, gen) {
+    if (!tokens) return false;
 
     try {
-        let tokens = null;
-        let dictSource = 'unknown';
-
-        // 辞書ルーティングは background.js で一元管理（ipadic/system 自動切替）
-        if (!requestQueue.isFallbackMode()) {
-            try {
-                const response = await sendNativeMessage('tokenize', { text });
-                if (response && response.success && response.tokens) {
-                    tokens = response.tokens;
-                    dictSource = response.dictSource || 'system';
-                }
-            } catch (err) {
-                console.warn('[Furikana] Tokenization failed:', err.message);
-            }
-        }
-
         // ReadingRules を両辞書共通で適用（JS側に一元化）
-        if (tokens && settings.readingRules) {
+        if (settings.readingRules) {
             tokens = ReadingRules.apply(tokens);
         }
 
         let units;
-        if (tokens) {
-            console.log(`[Furikana] Tokenization successful (${dictSource}), tokens:`, tokens.length);
-            if (settings.unitType === 'long') {
-                units = groupToLongUnits(tokens);
-            } else {
-                units = tokens.map(t => ({
-                    surface: t.surface,
-                    reading: t.reading || t.surface,
-                    tokens: [t]
-                }));
-            }
+        console.log(`[Furikana] Tokenization successful (${dictSource || 'unknown'}), tokens:`, tokens.length);
+        if (settings.unitType === 'long') {
+            units = groupToLongUnits(tokens);
         } else {
-            // 最終フォールバック: 読み仮名なし
-            units = [];
-            for (const char of text) {
-                units.push({ surface: char, reading: char, tokens: [] });
-            }
+            units = tokens.map(t => ({
+                surface: t.surface,
+                reading: t.reading || t.surface,
+                tokens: [t]
+            }));
         }
 
         // rubyタグを生成
         const fragment = document.createDocumentFragment();
         let rubyCount = 0;
+        let textPos = 0; // 元テキスト中の現在位置
 
         for (const unit of units) {
+            // トークン間の隙間（空白・改行等）を補完
+            const unitRange = getUnitRange(unit);
+            if (unitRange && unitRange[0] > textPos) {
+                fragment.appendChild(document.createTextNode(text.substring(textPos, unitRange[0])));
+            }
+
             // 漢字を含む場合のみrubyタグを追加
             if (containsKanji(unit.surface)) {
                 // readingが表面形と同じ場合、または無効な場合はルビを表示しない
                 if (!unit.reading || unit.reading === unit.surface) {
                     fragment.appendChild(document.createTextNode(unit.surface));
+                    if (unitRange) textPos = unitRange[1];
                     continue;
                 }
 
@@ -884,6 +1052,16 @@ async function addFuriganaToNode(textNode) {
                 // 漢字を含まない場合はそのまま追加
                 fragment.appendChild(document.createTextNode(unit.surface));
             }
+
+            // 位置を更新
+            if (unitRange) {
+                textPos = unitRange[1];
+            }
+        }
+
+        // 末尾の残余テキスト（空白・改行等）を補完
+        if (textPos > 0 && textPos < text.length) {
+            fragment.appendChild(document.createTextNode(text.substring(textPos)));
         }
 
         // 世代が変わっていたら旧辞書の結果なので破棄
@@ -901,9 +1079,41 @@ async function addFuriganaToNode(textNode) {
         }
         return true;
     } catch (error) {
-        console.error('[Furikana] Error adding furigana:', error);
+        console.error('[Furikana] Error applying tokens to node:', error);
         return false;
     }
+}
+
+// テキストノードにふりがなを追加（単体リクエスト — 後方互換）
+async function addFuriganaToNode(textNode) {
+    const text = textNode.nodeValue;
+    const gen = furikanaGeneration;
+
+    if (!containsKanji(text)) {
+        return false;
+    }
+
+    let tokens = null;
+    let dictSource = 'unknown';
+
+    if (!requestQueue.isFallbackMode()) {
+        try {
+            const response = await sendNativeMessage('tokenize', { text });
+            if (response && response.success && response.tokens) {
+                tokens = response.tokens;
+                dictSource = response.dictSource || 'system';
+            }
+        } catch (err) {
+            console.warn('[Furikana] Tokenization failed:', err.message);
+        }
+    }
+
+    if (!tokens) {
+        console.log('[Furikana] Tokenization failed, leaving node for retry');
+        return false;
+    }
+
+    return applyTokensToNode(textNode, text, tokens, dictSource, gen);
 }
 
 // ふりがなを削除
@@ -932,6 +1142,8 @@ function removeFurigana() {
     parents.forEach(parent => {
         if (parent.isConnected) parent.normalize();
     });
+
+    restoreOverflowAncestors();
 
     const lineContainers = document.querySelectorAll('.furikana-line');
     lineContainers.forEach(el => {
@@ -966,6 +1178,9 @@ async function toggleFurigana() {
         visibleProcessor.start();
         furikanaEnabled = true;
     }
+
+    // ツールバーアイコンを更新
+    browser.runtime.sendMessage({ action: 'updateIcon', enabled: furikanaEnabled }).catch(() => {});
 
     return furikanaEnabled;
 }

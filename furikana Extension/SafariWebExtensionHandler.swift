@@ -49,35 +49,31 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 if let text = messageDict["text"] as? String {
                     NSLog("[Furikana] Tokenizing: %@", text.prefix(30) as NSString)
                     let tokens = tokenizeText(text)
-                    responseData["tokens"] = tokens.map { token -> [String: Any] in
-                        // readingの妥当性チェック
-                        let reading = token.reading ?? token.surface
-
-                        // readingが妥当でない場合（非ASCII文字が含まれるがひらがな/カタカナでない）
-                        let isValidReading = reading.range(of: "[\\p{Hiragana}\\p{Katakana}a-zA-Z]+", options: .regularExpression) != nil
-
-                        if !isValidReading && reading != token.surface {
-                            NSLog("[Furikana] Invalid reading detected: surface=%@, reading=%@", token.surface, reading)
-                            // 無効な読み仮名の場合、表面形を返す
-                            return [
-                                "surface": token.surface,
-                                "reading": token.surface,
-                                "pos": token.pos ?? "",
-                                "range": token.range
-                            ]
-                        }
-
-                        return [
-                            "surface": token.surface,
-                            "reading": reading,
-                            "pos": token.pos ?? "",
-                            "range": token.range
-                        ]
-                    }
+                    responseData["tokens"] = mapTokensToDict(tokens)
                     responseData["success"] = true
                 } else {
                     responseData["success"] = false
                     responseData["error"] = "No text provided"
+                }
+
+            case "tokenizeBatch":
+                if let texts = messageDict["texts"] as? [String] {
+                    NSLog("[Furikana] Batch tokenizing %d texts", texts.count)
+                    var results: [[String: Any]] = []
+                    for text in texts {
+                        autoreleasepool {
+                            let tokens = tokenizeText(text)
+                            results.append([
+                                "tokens": mapTokensToDict(tokens),
+                                "success": true
+                            ])
+                        }
+                    }
+                    responseData["results"] = results
+                    responseData["success"] = true
+                } else {
+                    responseData["success"] = false
+                    responseData["error"] = "No texts provided"
                 }
 
             case "getReading":
@@ -168,6 +164,30 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             return request?.userInfo?[SFExtensionMessageKey]
         } else {
             return request?.userInfo?["message"]
+        }
+    }
+
+    // トークン配列を辞書配列に変換（reading の妥当性チェック付き）
+    private func mapTokensToDict(_ tokens: [TokenInfo]) -> [[String: Any]] {
+        return tokens.map { token -> [String: Any] in
+            let reading = token.reading ?? token.surface
+            let isValidReading = reading.range(of: "[\\p{Hiragana}\\p{Katakana}a-zA-Z]+", options: .regularExpression) != nil
+
+            if !isValidReading && reading != token.surface {
+                return [
+                    "surface": token.surface,
+                    "reading": token.surface,
+                    "pos": token.pos ?? "",
+                    "range": token.range
+                ]
+            }
+
+            return [
+                "surface": token.surface,
+                "reading": reading,
+                "pos": token.pos ?? "",
+                "range": token.range
+            ]
         }
     }
 

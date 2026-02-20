@@ -28,6 +28,11 @@ async function toggleFurigana() {
         if (response && response.success) {
             isEnabled = response.enabled;
             updateUI();
+            // ツールバーアイコンを更新
+            browser.action.setIcon({
+                tabId: tab.id,
+                path: isEnabled ? 'images/toolbar-icon_on.svg' : 'images/toolbar-icon_off.svg'
+            }).catch(() => {});
             updateStatus(isEnabled ? 'ふりがなを表示しました' : 'ふりがなを非表示にしました', 'success');
         } else {
             updateStatus('処理に失敗しました', 'error');

@@ -7,7 +7,16 @@ const ReadingRules = (() => {
         { id: 'nani-wo-seq', priority: 100, surfaces: ['何', 'を'], reading: 'なにを' },
         { id: 'nani-no-seq', priority: 100, surfaces: ['何', 'の'], reading: 'なんの' },
         { id: 'cyura-umi', priority: 100, surfaces: ['美ら', '海'], reading: 'ちゅらうみ' },
-        { id: 'youbi-seq', priority: 100, surfaces: ['曜', '日'], reading: 'ようび' }
+        { id: 'youbi-seq', priority: 100, surfaces: ['曜', '日'], reading: 'ようび' },
+        { id: 'nan-youbi-seq-2a', priority: 110, surfaces: ['何曜', '日'], reading: 'なんようび' },
+        { id: 'nan-youbi-seq-2b', priority: 110, surfaces: ['何', '曜日'], reading: 'なんようび' },
+        { id: 'nan-youbi-seq-3', priority: 110, surfaces: ['何', '曜', '日'], reading: 'なんようび' },
+        { id: 'hizuke-seq', priority: 100, surfaces: ['日', '付'], reading: 'ひづけ' },
+        { id: 'shigatsu-seq', priority: 110, surfaces: ['四', '月'], reading: 'しがつ' },
+        { id: 'hitori-seq', priority: 100, surfaces: ['1', '人'], reading: 'ひとり' },
+        { id: 'hitori-seq-fw', priority: 100, surfaces: ['１', '人'], reading: 'ひとり' },
+        { id: 'futari-seq', priority: 100, surfaces: ['2', '人'], reading: 'ふたり' },
+        { id: 'futari-seq-fw', priority: 100, surfaces: ['２', '人'], reading: 'ふたり' }
     ];
 
     const surfaceRules = [
@@ -16,7 +25,10 @@ const ReadingRules = (() => {
         { id: 'chu-kyo-shin-surface', priority: 90, surface: '中教審', reading: 'ちゅうきょうしん' },
         { id: 'nani-wo-surface', priority: 90, surface: '何を', reading: 'なにを' },
         { id: 'nani-no-surface', priority: 90, surface: '何の', reading: 'なんの' },
-        { id: 'youbi-surface', priority: 90, surface: '曜日', reading: 'ようび' }
+        { id: 'youbi-surface', priority: 90, surface: '曜日', reading: 'ようび' },
+        { id: 'nan-youbi-surface', priority: 95, surface: '何曜日', reading: 'なんようび' },
+        { id: 'hizuke-surface', priority: 90, surface: '日付', reading: 'ひづけ' },
+        { id: 'shigatsu-surface', priority: 95, surface: '四月', reading: 'しがつ' }
     ];
 
     // 数字パターン（月用・日用・汎用）を定義
@@ -24,7 +36,47 @@ const ReadingRules = (() => {
     const DAY_NUM = '[1-9]|[12][0-9]|3[01]|[１-９]|[１２][０-９]|３[０-１]';
     const ANY_NUM = '[0-9]+|[０-９]+|何';  // 何か月/何ヶ月 の「何」を含む
 
+    // === 和語日付読み (2日〜10日): 「日」→「か」===
+    const WAGO_DAY_NUM = '[2-9２-９]|[1１][0０]';  // 2〜10（半角・全角）
+
+    // === 泊: ぱく(末尾0,1,3,4,6,8) / はく(末尾2,5,7,9) ===
+    const PAKU_LAST = '[013468０１３４６８]';
+    const HAKU_LAST = '[2579２５７９]';
+
     const regexRules = [
+        // === 泊: ぱく/はく ===
+        { id: 'paku-combined', priority: 130,
+          pattern: new RegExp('^([0-9０-９]*' + PAKU_LAST + ')泊$'),
+          replacement: '$1ぱく' },
+        { id: 'haku-combined', priority: 130,
+          pattern: new RegExp('^([0-9０-９]*' + HAKU_LAST + ')泊$'),
+          replacement: '$1はく' },
+        { id: 'paku-split', priority: 130,
+          pattern: /^泊$/,
+          replacement: 'ぱく',
+          context: { prevPattern: new RegExp('[0-9０-９]*' + PAKU_LAST + '$') } },
+        { id: 'haku-split', priority: 130,
+          pattern: /^泊$/,
+          replacement: 'はく',
+          context: { prevPattern: new RegExp('[0-9０-９]*' + HAKU_LAST + '$') } },
+
+        // === 1人 → ひとり ===
+        { id: 'hitori-combined', priority: 130,
+          pattern: /^[1１]人$/,
+          replacement: 'ひとり' },
+        { id: 'futari-combined', priority: 130,
+          pattern: /^[2２]人$/,
+          replacement: 'ふたり' },
+
+        // === 頃: 「の頃」→ころ、それ以外→ごろ ===
+        { id: 'koro-after-no', priority: 131,
+          pattern: /^頃$/,
+          replacement: 'ころ',
+          context: { prevPattern: /の$/ } },
+        { id: 'goro-default', priority: 130,
+          pattern: /^頃$/,
+          replacement: 'ごろ' },
+
         // === 結合トークン向け（Swift NLTagger等） ===
         { id: 'month-day-combined', priority: 140,
           pattern: /^((1[0-2])|([1-9])|(１[０-２])|([１-９]))月((3[01])|([12][0-9])|([1-9])|(３[０-１])|([１２][０-９])|([１-９]))日$/,
@@ -62,7 +114,7 @@ const ReadingRules = (() => {
         { id: 'youbi-after-weekday', priority: 140,
           pattern: /^日$/,
           replacement: 'び',
-          context: { prevPattern: /^[月火水木金土日]曜$/ } },
+          context: { prevPattern: /^[月火水木金土日何]曜$/ } },
 
         // === か月/ヶ月 → げつ ===
         // 結合トークン: "3か月" / "何ヶ月" 等
@@ -94,6 +146,17 @@ const ReadingRules = (() => {
           } },
         // 日: 数字の直後の「日」→「にち」（月コンテキストなし）
         // nichi-split (priority 99) で既にカバー
+
+        // === 和語日付読み (2日〜10日): 「日」→「か」===
+        // 結合トークン: "Y日" → "Yか"（数字はルビなし、日にルビ「か」）
+        { id: 'wago-day-combined', priority: 136,
+          pattern: new RegExp('^(' + WAGO_DAY_NUM + ')日$'),
+          replacement: '$1か' },
+        // 分離トークン: "Y" + "日" → 日=か
+        { id: 'wago-day-split', priority: 135,
+          pattern: /^日$/,
+          replacement: 'か',
+          context: { prevPattern: new RegExp('^(' + WAGO_DAY_NUM + ')$') } },
     ];
 
     function contextMatches(ctx, tokens, index) {
