@@ -12,7 +12,7 @@ let settings = {
     rubyGap: 1,
     rubyLineHeight: 1.3,
     rubyMinHeight: 12,
-    rubyBoxPadding: 0,
+    rubyBoxPadding: 0.15,
     rubyBoxMargin: 0
 };
 
@@ -25,13 +25,23 @@ function katakanaToHiragana(str) {
 
 // ReadingRules は reading-rules.js で定義（manifest.json で先にロード）
 
+// 接続エラー（background.js停止）かどうかを判定
+function isConnectionError(error) {
+    if (!error) return false;
+    const msg = (error.message || error.toString()).toLowerCase();
+    return msg.includes('could not establish connection')
+        || msg.includes('receiving end does not exist')
+        || msg.includes('extension context invalidated')
+        || msg.includes('message port closed');
+}
+
 // リクエストキューイングシステム
 class RequestQueue {
     constructor(maxConcurrent = 3, intervalDelay = 50) {
         this.maxConcurrent = maxConcurrent;  // 同時実行数の上限
         this.running = 0;                     // 現在実行中のリクエスト数
         this.queue = [];                      // 待機中のリクエスト
-        this.errorCount = 0;                  // 連続エラー回数
+        this.errorCount = 0;                  // 連続エラー回数（トークン化エラー）
         this.errorThreshold = 10;             // エラー閾値
         this.totalRequests = 0;               // 総リクエスト数
         this.successfulRequests = 0;          // 成功したリクエスト数
@@ -42,6 +52,9 @@ class RequestQueue {
         this.cooldownMs = 0;                  // 現在のクールダウン時間
         this.baseCooldownMs = 3000;           // 初回クールダウン（3秒）
         this.maxCooldownMs = 30000;           // 最大クールダウン（30秒）
+
+        // 接続エラー（background.js停止）用の別管理
+        this.connectionRetrying = false;      // 接続リトライ中フラグ
     }
 
     // リクエストをキューに追加
@@ -95,26 +108,50 @@ class RequestQueue {
 
             resolve(result);
         } catch (error) {
-            // エラーが発生した場合
-            this.errorCount++;
-            console.error(`[Furikana] Request failed (error count: ${this.errorCount}/${this.errorThreshold}):`, error);
+            if (isConnectionError(error)) {
+                // 接続エラー: background.js が停止中 → クールダウンカウントに入れない
+                console.warn('[Furikana] Connection error (background.js may be stopped):', error.message);
 
-            // エラー閾値到達: クールダウンに入る（指数バックオフ）
-            if (this.errorCount >= this.errorThreshold) {
-                this.cooldownMs = this.cooldownMs === 0
-                    ? this.baseCooldownMs
-                    : Math.min(this.cooldownMs * 2, this.maxCooldownMs);
-                this.cooldownUntil = Date.now() + this.cooldownMs;
-
-                console.warn(`[Furikana] Error threshold reached, cooldown ${this.cooldownMs}ms (until ${new Date(this.cooldownUntil).toLocaleTimeString()})`);
-                console.warn(`[Furikana] Stats: ${this.successfulRequests}/${this.totalRequests} successful requests`);
-
-                // 待機中のリクエストをキャンセル（クールダウン明けに再スキャンされる）
+                // 待機中のリクエストをキャンセル（リトライ待機後に再スキャン）
                 this.queue.forEach(item => item.resolve(null));
                 this.queue = [];
-            }
 
-            resolve(null); // エラー時もresolveして処理を続行
+                if (!this.connectionRetrying) {
+                    this.connectionRetrying = true;
+                    console.log('[Furikana] Waiting for background.js to restart...');
+                    // 2秒待ってから再スキャンをトリガー（background.js再起動の猶予）
+                    setTimeout(() => {
+                        this.connectionRetrying = false;
+                        console.log('[Furikana] Retrying after connection error wait');
+                        if (visibleProcessor && visibleProcessor.running) {
+                            visibleProcessor.scheduleScan();
+                        }
+                    }, 2000);
+                }
+
+                resolve(null);
+            } else {
+                // トークン化エラー（Swift側の問題など）
+                this.errorCount++;
+                console.error(`[Furikana] Request failed (error count: ${this.errorCount}/${this.errorThreshold}):`, error);
+
+                // エラー閾値到達: クールダウンに入る（指数バックオフ）
+                if (this.errorCount >= this.errorThreshold) {
+                    this.cooldownMs = this.cooldownMs === 0
+                        ? this.baseCooldownMs
+                        : Math.min(this.cooldownMs * 2, this.maxCooldownMs);
+                    this.cooldownUntil = Date.now() + this.cooldownMs;
+
+                    console.warn(`[Furikana] Error threshold reached, cooldown ${this.cooldownMs}ms (until ${new Date(this.cooldownUntil).toLocaleTimeString()})`);
+                    console.warn(`[Furikana] Stats: ${this.successfulRequests}/${this.totalRequests} successful requests`);
+
+                    // 待機中のリクエストをキャンセル（クールダウン明けに再スキャンされる）
+                    this.queue.forEach(item => item.resolve(null));
+                    this.queue = [];
+                }
+
+                resolve(null); // エラー時もresolveして処理を続行
+            }
         } finally {
             this.running--;
 
@@ -666,7 +703,7 @@ async function loadSettings() {
         rubyGap: 1,
         rubyLineHeight: 1.3,
         rubyMinHeight: 12,
-        rubyBoxPadding: 0,
+        rubyBoxPadding: 0.15,
         rubyBoxMargin: 0
     });
 
@@ -724,8 +761,13 @@ function getTextNodes(element) {
                 }
                 const parent = node.parentElement;
                 if (parent) {
-                    // スクリプト/スタイル/RUBYタグ内は除外
-                    if (parent.tagName === 'SCRIPT' || parent.tagName === 'STYLE' || parent.tagName === 'RUBY') {
+                    // スクリプト/スタイル/RUBY/RT/RB タグ内は除外
+                    const tag = parent.tagName;
+                    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'RUBY' || tag === 'RT' || tag === 'RB') {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    // 祖先に既存の ruby がある場合も除外（rb の孫テキスト等）
+                    if (parent.closest('ruby')) {
                         return NodeFilter.FILTER_REJECT;
                     }
 
@@ -953,7 +995,8 @@ function splitKanjiReading(surface, reading) {
 }
 
 // バッチトークン化リクエスト（複数テキストを1回の通信で送信）
-async function sendBatchTokenize(texts) {
+// 接続エラー時は1回だけリトライ（background.js再起動の猶予を与える）
+async function sendBatchTokenize(texts, retry = 0) {
     if (requestQueue.isFallbackMode()) return null;
     try {
         return await requestQueue.enqueue(async () => {
@@ -967,6 +1010,12 @@ async function sendBatchTokenize(texts) {
             throw new Error('Batch tokenize unsuccessful');
         });
     } catch (error) {
+        // 接続エラーかつリトライ未実施 → 2秒待ってから1回リトライ
+        if (isConnectionError(error) && retry < 1) {
+            console.warn('[Furikana] Connection error in sendBatchTokenize, retrying in 2s...');
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return sendBatchTokenize(texts, retry + 1);
+        }
         console.error('[Furikana] Batch tokenize failed:', error);
         return null;
     }
@@ -986,7 +1035,7 @@ function applyTokensToNode(textNode, text, tokens, dictSource, gen) {
 
     try {
         // ReadingRules を両辞書共通で適用（JS側に一元化）
-        if (settings.readingRules) {
+        if (settings.readingRules && typeof ReadingRules !== 'undefined') {
             tokens = ReadingRules.apply(tokens);
         }
 
@@ -1190,6 +1239,9 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'toggleFurigana') {
         toggleFurigana().then(enabled => {
             sendResponse({ success: true, enabled });
+        }).catch(error => {
+            console.error('[Furikana] toggleFurigana failed:', error);
+            sendResponse({ success: false, error: error.message });
         });
         return true; // 非同期レスポンス
     } else if (request.action === 'getStatus') {
@@ -1204,6 +1256,41 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
 document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
         browser.runtime.sendMessage({ action: 'syncAppGroup' }).catch(() => {});
+    }
+});
+
+// ふりがなを削除して再構築する共通処理
+function rebuildFurigana() {
+    if (!furikanaEnabled) return;
+    furikanaGeneration++;
+    removeFurigana();
+    requestQueue.reset();
+    if (visibleProcessor) {
+        visibleProcessor.stop();
+        visibleProcessor = null;
+    }
+    visibleProcessor = new VisibleTextProcessor();
+    visibleProcessor.start();
+}
+
+// 背面タブでの再構築を遅延するための仕組み
+let pendingRebuild = false;
+
+function scheduleRebuild() {
+    if (document.hidden) {
+        // 背面タブ: フォアグラウンド復帰時に再構築
+        pendingRebuild = true;
+        console.log('[Furikana] Tab hidden, deferring rebuild');
+    } else {
+        rebuildFurigana();
+    }
+}
+
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden && pendingRebuild) {
+        pendingRebuild = false;
+        console.log('[Furikana] Tab visible, executing deferred rebuild');
+        rebuildFurigana();
     }
 });
 
@@ -1224,40 +1311,20 @@ browser.storage.onChanged.addListener((changes, areaName) => {
     }
     if (needUpdate) {
         applyRubyCSS();
-        realignAllRubyWidths();
+        if (!document.hidden) realignAllRubyWidths();
     }
-    if (needSpacingUpdate) updateLineSpacingForAll();
+    if (needSpacingUpdate && !document.hidden) updateLineSpacingForAll();
 
     // reverseRuby 切り替え（CSS変更だけでなくルビ再構築が必要）
-    if (changes.reverseRuby && furikanaEnabled) {
-        furikanaGeneration++;
-        removeFurigana();
-        requestQueue.reset();
-        if (visibleProcessor) {
-            visibleProcessor.stop();
-            visibleProcessor = null;
-        }
-        visibleProcessor = new VisibleTextProcessor();
-        visibleProcessor.start();
+    if (changes.reverseRuby) {
+        scheduleRebuild();
     }
 
     // readingRules 切り替え
     if (changes.readingRules) {
         settings.readingRules = changes.readingRules.newValue;
         console.log('[Furikana] Reading rules changed to:', settings.readingRules);
-
-        // ふりがな表示中なら再解析
-        if (furikanaEnabled) {
-            furikanaGeneration++;
-            removeFurigana();
-            requestQueue.reset();
-            if (visibleProcessor) {
-                visibleProcessor.stop();
-                visibleProcessor = null;
-            }
-            visibleProcessor = new VisibleTextProcessor();
-            visibleProcessor.start();
-        }
+        scheduleRebuild();
     }
 
     // readingType / unitType 切り替え
@@ -1270,18 +1337,7 @@ browser.storage.onChanged.addListener((changes, areaName) => {
             settings.unitType = changes.unitType.newValue;
             console.log('[Furikana] Unit type changed to:', settings.unitType);
         }
-
-        if (furikanaEnabled) {
-            furikanaGeneration++;
-            removeFurigana();
-            requestQueue.reset();
-            if (visibleProcessor) {
-                visibleProcessor.stop();
-                visibleProcessor = null;
-            }
-            visibleProcessor = new VisibleTextProcessor();
-            visibleProcessor.start();
-        }
+        scheduleRebuild();
     }
 
     // 辞書切り替え
@@ -1289,19 +1345,7 @@ browser.storage.onChanged.addListener((changes, areaName) => {
         const newDict = changes.dictType.newValue;
         settings.dictType = newDict;
         console.log('[Furikana] Dictionary changed to:', newDict);
-
-        // ふりがな表示中なら削除→再解析
-        if (furikanaEnabled) {
-            furikanaGeneration++;
-            removeFurigana();
-            requestQueue.reset();
-            if (visibleProcessor) {
-                visibleProcessor.stop();
-                visibleProcessor = null;
-            }
-            visibleProcessor = new VisibleTextProcessor();
-            visibleProcessor.start();
-        }
+        scheduleRebuild();
     }
 });
 

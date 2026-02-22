@@ -11,7 +11,7 @@ const DEFAULTS = {
     rubyGap: 1,
     rubyLineHeight: 1.3,
     rubyMinHeight: 12,
-    rubyBoxPadding: 0,
+    rubyBoxPadding: 0.15,
     rubyBoxMargin: 0
 };
 
