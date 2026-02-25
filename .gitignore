@@ -14,5 +14,12 @@ node_modules/
 *.swp
 *~
 
+# Rust build cache
+native/sudachi_bridge/target/
+
+# Rust/Cargo toolchain
+.cargo-home/
+.rustup-home/
+
 # Claude Code
 .claude/

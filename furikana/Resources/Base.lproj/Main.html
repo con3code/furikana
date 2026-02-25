@@ -13,8 +13,30 @@
     <p style="margin-top: 8px; font-size: 14px; color: #007aff;">Tap icon to open settings</p>
     <p>You can turn on FuriFuri's Safari extension in Settings.</br>
     You may close the app.</p>
-    <p style="margin-top: 16px; font-size: 12px; color: #8e8e93;">FuriFuri ver.1.0(6)</p>
+    <div id="dict-section">
+        <p class="dict-heading">Sudachi Extra Dictionary</p>
+        <p id="dict-status-text" class="dict-status">Checking...</p>
+
+        <div id="dict-size-select" style="display:none;">
+            <label><input type="radio" name="dictSize" value="core" checked> Core (~40MB)</label>
+            <label><input type="radio" name="dictSize" value="full"> Full (~80MB)</label>
+        </div>
+
+        <div id="dict-progress" style="display:none;">
+            <div class="progress-track">
+                <div id="dict-progress-bar" class="progress-fill"></div>
+            </div>
+            <p id="dict-progress-text" class="dict-progress-label">0%</p>
+        </div>
+
+        <button id="dict-download-btn" style="display:none;">Download</button>
+        <button id="dict-cancel-btn" style="display:none;">Cancel</button>
+        <button id="dict-delete-btn" style="display:none;">Delete Dictionary</button>
+    </div>
+
+    <p style="margin-top: 16px; font-size: 12px; color: #8e8e93;">FuriFuri ver.1.0(7)</p>
     <p style="margin-top: 4px; font-size: 13px;"><a href="#" id="open-licenses" style="color: #6e6e73;">Licenses</a></p>
+
     <script>
     document.getElementById('app-icon').addEventListener('click', function() {
         window.webkit.messageHandlers.controller.postMessage({ action: 'openOptions' });
@@ -23,6 +45,62 @@
         e.preventDefault();
         window.webkit.messageHandlers.controller.postMessage({ action: 'openLicenses' });
     });
+
+    window._onDictStatus = function(s) {
+        var statusEl = document.getElementById('dict-status-text');
+        var progressEl = document.getElementById('dict-progress');
+        var downloadBtn = document.getElementById('dict-download-btn');
+        var cancelBtn = document.getElementById('dict-cancel-btn');
+        var deleteBtn = document.getElementById('dict-delete-btn');
+        var sizeSelect = document.getElementById('dict-size-select');
+        var bar = document.getElementById('dict-progress-bar');
+        var label = document.getElementById('dict-progress-text');
+
+        progressEl.style.display = 'none';
+        downloadBtn.style.display = 'none';
+        cancelBtn.style.display = 'none';
+        deleteBtn.style.display = 'none';
+        sizeSelect.style.display = 'none';
+
+        if (s.status === 'idle') {
+            statusEl.textContent = 'Extra dictionary available for download';
+            sizeSelect.style.display = '';
+            downloadBtn.style.display = '';
+        } else if (s.status === 'downloading') {
+            statusEl.textContent = 'Downloading...';
+            progressEl.style.display = '';
+            bar.style.width = Math.round(s.progress * 100) + '%';
+            label.textContent = Math.round(s.progress * 100) + '%';
+            cancelBtn.style.display = '';
+        } else if (s.status === 'extracting') {
+            statusEl.textContent = 'Extracting dictionary...';
+            progressEl.style.display = '';
+            bar.style.width = '100%';
+            label.textContent = 'Extracting...';
+        } else if (s.status === 'complete') {
+            var mb = (s.size / 1024 / 1024).toFixed(0);
+            var typeLabel = s.type === 'full' ? 'Full' : 'Core';
+            statusEl.textContent = typeLabel + ' dictionary installed (' + mb + ' MB)';
+            deleteBtn.style.display = '';
+        } else if (s.status === 'error') {
+            statusEl.textContent = 'Error: ' + s.message;
+            sizeSelect.style.display = '';
+            downloadBtn.style.display = '';
+        }
+    };
+
+    document.getElementById('dict-download-btn').addEventListener('click', function() {
+        var size = document.querySelector('input[name="dictSize"]:checked').value;
+        window.webkit.messageHandlers.controller.postMessage({action:'downloadDict', size:size});
+    });
+    document.getElementById('dict-cancel-btn').addEventListener('click', function() {
+        window.webkit.messageHandlers.controller.postMessage({action:'cancelDownload'});
+    });
+    document.getElementById('dict-delete-btn').addEventListener('click', function() {
+        window.webkit.messageHandlers.controller.postMessage({action:'deleteDict'});
+    });
+
+    window.webkit.messageHandlers.controller.postMessage({action:'getDictStatus'});
     </script>
 </body>
 </html>

@@ -57,12 +57,32 @@
         <p>Safariで「FuriFuri Extension」を追加してください。</br>
         アプリは閉じても大丈夫です。
         </p>
-        <p style="margin-top: 16px; font-size: 12px; color: #8e8e93">FuriFuri ver.1.0(6)</p>
+        <div id="dict-section">
+            <p class="dict-heading">Sudachi 追加辞書</p>
+            <p id="dict-status-text" class="dict-status">確認中...</p>
+
+            <div id="dict-size-select" style="display:none;">
+                <label><input type="radio" name="dictSize" value="core" checked> Core（~40MB）</label>
+                <label><input type="radio" name="dictSize" value="full"> Full（~80MB）</label>
+            </div>
+
+            <div id="dict-progress" style="display:none;">
+                <div class="progress-track">
+                    <div id="dict-progress-bar" class="progress-fill"></div>
+                </div>
+                <p id="dict-progress-text" class="dict-progress-label">0%</p>
+            </div>
+
+            <button id="dict-download-btn" style="display:none;">ダウンロード</button>
+            <button id="dict-cancel-btn" style="display:none;">キャンセル</button>
+            <button id="dict-delete-btn" style="display:none;">辞書を削除</button>
+        </div>
+
+        <p style="margin-top: 16px; font-size: 12px; color: #8e8e93">FuriFuri ver.1.0(7)</p>
         <p style="margin-top: 4px; font-size: 13px">
-            <a href="#" id="open-licenses" style="color: #6e6e73"
-                >ライセンス情報</a
-            >
+            <a href="#" id="open-licenses" style="color: #6e6e73">ライセンス情報</a>
         </p>
+
         <script>
             document
                 .getElementById("app-icon")
@@ -79,6 +99,64 @@
                         action: "openLicenses",
                     });
                 });
+
+            // 辞書ステータスコールバック
+            window._onDictStatus = function(s) {
+                var statusEl = document.getElementById('dict-status-text');
+                var progressEl = document.getElementById('dict-progress');
+                var downloadBtn = document.getElementById('dict-download-btn');
+                var cancelBtn = document.getElementById('dict-cancel-btn');
+                var deleteBtn = document.getElementById('dict-delete-btn');
+                var sizeSelect = document.getElementById('dict-size-select');
+                var bar = document.getElementById('dict-progress-bar');
+                var label = document.getElementById('dict-progress-text');
+
+                progressEl.style.display = 'none';
+                downloadBtn.style.display = 'none';
+                cancelBtn.style.display = 'none';
+                deleteBtn.style.display = 'none';
+                sizeSelect.style.display = 'none';
+
+                if (s.status === 'idle') {
+                    statusEl.textContent = '追加辞書がダウンロード可能です';
+                    sizeSelect.style.display = '';
+                    downloadBtn.style.display = '';
+                } else if (s.status === 'downloading') {
+                    statusEl.textContent = 'ダウンロード中...';
+                    progressEl.style.display = '';
+                    bar.style.width = Math.round(s.progress * 100) + '%';
+                    label.textContent = Math.round(s.progress * 100) + '%';
+                    cancelBtn.style.display = '';
+                } else if (s.status === 'extracting') {
+                    statusEl.textContent = '辞書を展開中...';
+                    progressEl.style.display = '';
+                    bar.style.width = '100%';
+                    label.textContent = '展開中...';
+                } else if (s.status === 'complete') {
+                    var mb = (s.size / 1024 / 1024).toFixed(0);
+                    var typeLabel = s.type === 'full' ? 'Full' : 'Core';
+                    statusEl.textContent = typeLabel + ' 辞書インストール済み（' + mb + ' MB）';
+                    deleteBtn.style.display = '';
+                } else if (s.status === 'error') {
+                    statusEl.textContent = 'エラー: ' + s.message;
+                    sizeSelect.style.display = '';
+                    downloadBtn.style.display = '';
+                }
+            };
+
+            document.getElementById('dict-download-btn').addEventListener('click', function() {
+                var size = document.querySelector('input[name="dictSize"]:checked').value;
+                window.webkit.messageHandlers.controller.postMessage({action:'downloadDict', size:size});
+            });
+            document.getElementById('dict-cancel-btn').addEventListener('click', function() {
+                window.webkit.messageHandlers.controller.postMessage({action:'cancelDownload'});
+            });
+            document.getElementById('dict-delete-btn').addEventListener('click', function() {
+                window.webkit.messageHandlers.controller.postMessage({action:'deleteDict'});
+            });
+
+            // 初期状態取得
+            window.webkit.messageHandlers.controller.postMessage({action:'getDictStatus'});
         </script>
     </body>
 </html>

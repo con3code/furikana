@@ -1,6 +1,30 @@
 // バックグラウンドスクリプト
 console.log('[Furikana] Background script starting...');
 console.log('[Furikana] kuromoji available:', typeof kuromoji !== 'undefined');
+console.log('[Furikana] Sudachi available:', typeof isSudachiReady === 'function');
+
+// --- ネイティブログ（Console.app 用）---
+// sendNativeMessage で Swift 側の os_log に出力
+// fire-and-forget: レスポンスを待たない
+function nativeLog(message, level) {
+    try {
+        browser.runtime.sendNativeMessage('con3.furikana', {
+            action: 'jsLog',
+            message: String(message),
+            level: level || 'info'
+        }).catch(function(e) {
+            console.warn('[Furikana] nativeLog sendNativeMessage failed:', e);
+        });
+    } catch (e) {
+        console.warn('[Furikana] nativeLog exception:', e);
+    }
+}
+
+nativeLog('Background script loaded. kuromoji=' + (typeof kuromoji !== 'undefined') +
+          ', SudachiWasm=' + (typeof SudachiWasm !== 'undefined') +
+          ', isSudachiReady=' + (typeof isSudachiReady === 'function'));
+nativeLog('background.js: typeof browser=' + typeof browser +
+          ', sendNativeMessage=' + (typeof browser !== 'undefined' && browser.runtime && typeof browser.runtime.sendNativeMessage));
 
 // --- kuromoji 遅延初期化 ---
 let kuromojiTokenizer = null;
@@ -121,6 +145,7 @@ try {
     // メッセージハンドリング
     browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
         console.log("[Furikana] Background received message:", request.action);
+        nativeLog('onMessage: action=' + request.action);
 
         // content.jsからのリクエストを処理
         if (request.action === 'tokenize' || request.action === 'getReading') {
@@ -160,6 +185,15 @@ try {
             return true;
         }
 
+        // Sudachi 辞書ステータス問い合わせ（options.js から）
+        if (request.action === 'getSudachiStatus') {
+            sendResponse({
+                ready: isSudachiReady(),
+                dictMode: getSudachiDictMode()
+            });
+            return false;
+        }
+
         // ツールバーアイコン切り替え
         if (request.action === 'updateIcon') {
             const icon = request.enabled ? 'images/toolbar-icon_on.svg' : 'images/toolbar-icon_off.svg';
@@ -187,7 +221,12 @@ try {
 
         console.log('[Furikana] Dict type:', dictType);
 
-        if (dictType === 'ipadic') {
+        if (dictType === 'sudachi') {
+            // Sudachi WASM → ネイティブフォールバック → simpleTokenize
+            return await trySudachiTokenization(request)
+                || await tryNativeTokenization(request)
+                || fallbackTokenize(request);
+        } else if (dictType === 'ipadic') {
             // IPA辞書 (kuromoji) → ネイティブフォールバック → simpleTokenize
             return await tryKuromojiTokenization(request)
                 || await tryNativeTokenization(request)
@@ -208,11 +247,26 @@ try {
 
         const settings = await browser.storage.local.get({ dictType: 'system' });
         const dictType = settings.dictType;
-        const dictSource = dictType === 'ipadic' ? 'ipadic' : 'system';
 
         console.log(`[Furikana] Batch tokenize: ${texts.length} texts, dict: ${dictType}`);
 
-        if (dictType === 'ipadic') {
+        if (dictType === 'sudachi') {
+            // Sudachi WASM バッチ → native バッチフォールバック
+            try {
+                nativeLog('Batch sudachi: isSudachiReady=' + isSudachiReady());
+                if (!isSudachiReady()) {
+                    nativeLog('Batch sudachi: initializing...');
+                    await initSudachiWithFallback();
+                    nativeLog('Batch sudachi: initialized, ready=' + isSudachiReady());
+                }
+                const results = sudachiTokenizeBatch(texts);
+                nativeLog('Batch sudachi: success, ' + texts.length + ' texts');
+                return { success: true, results };
+            } catch (sudachiError) {
+                nativeLog('Batch sudachi FAILED: ' + (sudachiError && sudachiError.message || sudachiError), 'error');
+                console.warn('[Furikana] Sudachi batch failed, trying native:', sudachiError);
+            }
+        } else if (dictType === 'ipadic') {
             // kuromoji バッチ → native バッチフォールバック
             try {
                 const tokenizer = await initKuromoji();
@@ -252,6 +306,26 @@ try {
 
         // 全体失敗
         return { success: false, error: 'Batch tokenization failed' };
+    }
+
+    // Sudachi WASM でトークン化を試みる
+    async function trySudachiTokenization(request) {
+        if (request.action !== 'tokenize' || !request.text) return null;
+        try {
+            nativeLog('trySudachiTokenization: isSudachiReady=' + isSudachiReady());
+            if (!isSudachiReady()) {
+                nativeLog('trySudachiTokenization: initializing...');
+                await initSudachiWithFallback();
+                nativeLog('trySudachiTokenization: initialized, ready=' + isSudachiReady());
+            }
+            const tokens = sudachiTokenize(request.text);
+            nativeLog('trySudachiTokenization: success, tokens=' + tokens.length);
+            return { success: true, tokens: tokens, dictSource: 'sudachi' };
+        } catch (error) {
+            nativeLog('trySudachiTokenization FAILED: ' + (error && error.message || error), 'error');
+            console.error('[Furikana] Sudachi tokenization failed:', error);
+            return null;
+        }
     }
 
     // kuromoji でトークン化を試みる
@@ -377,11 +451,23 @@ try {
                 initKuromoji().catch(err => {
                     console.warn('[Furikana] kuromoji preload failed:', err);
                 });
-            } else if (newDictType === 'system' && kuromojiTokenizer) {
+            } else if (newDictType === 'sudachi' && !isSudachiReady()) {
+                nativeLog('Dict changed to sudachi, preloading...');
+                initSudachiWithFallback().catch(err => {
+                    nativeLog('Sudachi preload FAILED: ' + (err && err.message || err), 'error');
+                    console.warn('[Furikana] Sudachi preload failed:', err);
+                });
+            }
+
+            // 不要なバックエンドをアンロード
+            if (newDictType !== 'ipadic' && kuromojiTokenizer) {
                 kuromojiTokenizer = null;
                 kuromojiInitPromise = null;
                 kuromojiInitFailed = false;
                 console.log('[Furikana] kuromoji unloaded');
+            }
+            if (newDictType !== 'sudachi') {
+                unloadSudachi();
             }
         }
 

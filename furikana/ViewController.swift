@@ -55,6 +55,21 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
             handleStorageSet(body)
         case "goBack":
             loadMainPage()
+        case "downloadDict":
+            let sizeStr = (body["size"] as? String) ?? "core"
+            let size: DictionaryManager.DictSize = sizeStr == "full" ? .full : .core
+            DictionaryManager.shared.onStatusChanged = { [weak self] status in
+                self?.sendDictStatus(status)
+            }
+            DictionaryManager.shared.startDownload(size: size)
+        case "cancelDownload":
+            DictionaryManager.shared.cancelDownload()
+            sendDictStatus(.idle)
+        case "deleteDict":
+            DictionaryManager.shared.deleteDictionary()
+            sendDictStatus(.idle)
+        case "getDictStatus":
+            sendDictStatus(DictionaryManager.shared.currentStatus())
         default:
             break
         }
@@ -137,6 +152,29 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
             Bundle.main.url(forResource: "Main", withExtension: "html")!,
             allowingReadAccessTo: Bundle.main.resourceURL!
         )
+    }
+
+    // MARK: - 辞書ステータス通知
+
+    private func sendDictStatus(_ status: DictionaryManager.Status) {
+        let js: String
+        switch status {
+        case .idle:
+            js = "window._onDictStatus({status:'idle'})"
+        case .downloading(let p):
+            js = "window._onDictStatus({status:'downloading',progress:\(p)})"
+        case .extracting:
+            js = "window._onDictStatus({status:'extracting'})"
+        case .complete(let type, let size):
+            js = "window._onDictStatus({status:'complete',type:'\(type)',size:\(size)})"
+        case .error(let msg):
+            let escaped = msg.replacingOccurrences(of: "'", with: "\\'")
+                .replacingOccurrences(of: "\n", with: " ")
+            js = "window._onDictStatus({status:'error',message:'\(escaped)'})"
+        }
+        DispatchQueue.main.async {
+            self.webView.evaluateJavaScript(js, completionHandler: nil)
+        }
     }
 
     // MARK: - Storage ブリッジ

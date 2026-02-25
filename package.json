@@ -1,16 +1,17 @@
 {
   "name": "furikana",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "type": "commonjs",
   "scripts": {
+    "build:sudachi": "esbuild node_modules/sudachi-wasm333/sudachi.js --bundle --format=iife --global-name=SudachiWasm --platform=browser --target=safari16 --outfile='furikana Extension/Resources/sudachi-bundle.js' && node scripts/patch-sudachi-bundle.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "type": "commonjs",
   "dependencies": {
-    "kuromoji": "^0.1.2"
+    "kuromoji": "^0.1.2",
+    "sudachi-wasm333": "^1.0.3"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
   }
 }

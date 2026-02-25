@@ -20,6 +20,8 @@ struct TokenInfo: Codable {
 class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
 
     func beginRequest(with context: NSExtensionContext) {
+        NSLog("[FurikanaExt] beginRequest called")
+
         // リクエストごとにautoreleasepoolで囲み、一時オブジェクトを即座に解放
         // Safari拡張プロセスのメモリ制限下でCFStringTokenizerが安定動作するために必須
         autoreleasepool {
@@ -34,11 +36,13 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
 
             guard let messageDict = extractMessage(from: request) as? [String: Any],
                   let action = messageDict["action"] as? String else {
+                NSLog("[FurikanaExt] Invalid message format, inputItems=%d", context.inputItems.count)
                 os_log(.error, "Invalid message format")
                 context.cancelRequest(withError: NSError(domain: "FurikanaExtension", code: 1, userInfo: nil))
                 return
             }
 
+            NSLog("[FurikanaExt] Action: %@", action)
             os_log(.default, "Received action: %@ (profile: %@)", action, profile?.uuidString ?? "none")
 
             // アクションに応じて処理を分岐
@@ -88,29 +92,39 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
 
             case "loadDictFile":
                 if let filename = messageDict["filename"] as? String {
-                    // 安全性チェック: パストラバーサル防止
-                    let safe = filename.components(separatedBy: "/").last ?? filename
-                    let chunkSize = 256 * 1024  // 256KB per chunk
+                    // パストラバーサル防止: .. を含むパスを拒否
+                    guard !filename.contains("..") else {
+                        responseData["success"] = false
+                        responseData["error"] = "Invalid filename"
+                        break
+                    }
+                    let chunkSize = (messageDict["chunkSize"] as? Int) ?? (16 * 1024 * 1024)
                     let offset = (messageDict["offset"] as? Int) ?? 0
 
                     if let bundleURL = Bundle.main.resourceURL {
-                        // dict/ サブディレクトリまたはバンドルルートの両方を探索
-                        let fileInDict = bundleURL.appendingPathComponent("dict").appendingPathComponent(safe)
-                        let fileInRoot = bundleURL.appendingPathComponent(safe)
-                        let fileURL = FileManager.default.fileExists(atPath: fileInDict.path) ? fileInDict : fileInRoot
-                        if let data = try? Data(contentsOf: fileURL) {
-                            let totalSize = data.count
-                            let end = min(offset + chunkSize, totalSize)
-                            let chunk = data.subdata(in: offset..<end)
-                            os_log(.default, "loadDictFile: %@ chunk offset=%d len=%d total=%d", safe, offset, chunk.count, totalSize)
+                        // filename をそのままサブパスとして解決（"sudachi-dict/system.dic" 等）
+                        let safeName = filename.components(separatedBy: "/").last ?? filename
+                        let candidates = [
+                            bundleURL.appendingPathComponent(filename),           // フルパス
+                            bundleURL.appendingPathComponent("dict").appendingPathComponent(safeName), // dict/ 下
+                            bundleURL.appendingPathComponent(safeName)            // ルート
+                        ]
+                        let fileURL = candidates.first { FileManager.default.fileExists(atPath: $0.path) }
+
+                        if let fileURL = fileURL, let fh = try? FileHandle(forReadingFrom: fileURL) {
+                            defer { fh.closeFile() }
+                            let totalSize = Int(fh.seekToEndOfFile())
+                            fh.seek(toFileOffset: UInt64(offset))
+                            let chunk = fh.readData(ofLength: min(chunkSize, totalSize - offset))
+                            os_log(.default, "loadDictFile: %{public}@ offset=%d len=%d total=%d", filename, offset, chunk.count, totalSize)
                             responseData["data"] = chunk.base64EncodedString()
                             responseData["totalSize"] = totalSize
                             responseData["offset"] = offset
                             responseData["success"] = true
                         } else {
-                            os_log(.error, "loadDictFile: file not found: %@", safe)
+                            os_log(.error, "loadDictFile: file not found: %{public}@", filename)
                             responseData["success"] = false
-                            responseData["error"] = "File not found: \(safe)"
+                            responseData["error"] = "File not found: \(filename)"
                         }
                     } else {
                         responseData["success"] = false
@@ -133,6 +147,20 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                     responseData["error"] = "No settings provided"
                 }
 
+            case "jsLog":
+                // JS からのログを os_log に出力（Console.app で確認可能）
+                let level = (messageDict["level"] as? String) ?? "info"
+                let msg = (messageDict["message"] as? String) ?? "(no message)"
+                switch level {
+                case "error":
+                    os_log(.error, "[JS] %{public}@", msg)
+                case "warn":
+                    os_log(.default, "[JS:WARN] %{public}@", msg)
+                default:
+                    os_log(.default, "[JS] %{public}@", msg)
+                }
+                responseData["success"] = true
+
             case "loadSettings":
                 // App Group UserDefaults から設定を読み込み
                 let defaults = UserDefaults(suiteName: "group.con3.furikana")
@@ -140,6 +168,76 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 NSLog("[Furikana] loadSettings: UserDefaults is %@, loaded %d keys", defaults != nil ? "valid" : "NIL", settings.count)
                 responseData["settings"] = settings
                 responseData["success"] = true
+
+            case "dictionary_status":
+                // AppGroup 内のダウンロード済み辞書の存在チェック
+                NSLog("[FurikanaExt] dictionary_status: checking AppGroup...")
+                let fm = FileManager.default
+                guard let containerURL = fm.containerURL(
+                    forSecurityApplicationGroupIdentifier: "group.con3.furikana"
+                ) else {
+                    NSLog("[FurikanaExt] dictionary_status: AppGroup container not found")
+                    responseData["success"] = true
+                    responseData["available"] = false
+                    break
+                }
+                NSLog("[FurikanaExt] dictionary_status: container=%@", containerURL.path)
+                var found = false
+                // full → core の優先順で検索
+                for dictName in ["sudachi_full.dic", "sudachi_core.dic"] {
+                    let dictURL = containerURL.appendingPathComponent(dictName)
+                    let exists = fm.fileExists(atPath: dictURL.path)
+                    NSLog("[FurikanaExt] dictionary_status: %@ exists=%@", dictName, exists ? "YES" : "NO")
+                    if exists,
+                       let attrs = try? fm.attributesOfItem(atPath: dictURL.path) {
+                        let dictType = dictName.contains("full") ? "full" : "core"
+                        let size = (attrs[.size] as? Int) ?? 0
+                        responseData["available"] = true
+                        responseData["dictType"] = dictType
+                        responseData["totalSize"] = size
+                        responseData["updatedAt"] = ISO8601DateFormatter().string(
+                            from: (attrs[.modificationDate] as? Date) ?? .distantPast)
+                        found = true
+                        NSLog("[FurikanaExt] dictionary_status: found %@ (%d bytes)", dictType, size)
+                        break
+                    }
+                }
+                if !found {
+                    NSLog("[FurikanaExt] dictionary_status: no downloaded dict found")
+                    responseData["available"] = false
+                }
+                responseData["success"] = true
+
+            case "read_dictionary_chunk":
+                // AppGroup 内辞書のチャンク読み（16MB default — 往復回数を減らしiOSによる強制終了を回避）
+                let offset = (messageDict["offset"] as? Int) ?? 0
+                let chunkSize = (messageDict["chunkSize"] as? Int) ?? (16 * 1024 * 1024)
+                let dictType = (messageDict["dictType"] as? String) ?? "full"
+                let dictName = dictType == "core" ? "sudachi_core.dic" : "sudachi_full.dic"
+                NSLog("[FurikanaExt] read_dictionary_chunk: %@ offset=%d chunkSize=%d", dictName, offset, chunkSize)
+                guard let containerURL = FileManager.default.containerURL(
+                    forSecurityApplicationGroupIdentifier: "group.con3.furikana"
+                ),
+                let fh = try? FileHandle(forReadingFrom:
+                    containerURL.appendingPathComponent(dictName))
+                else {
+                    NSLog("[FurikanaExt] read_dictionary_chunk: FAILED to open %@", dictName)
+                    responseData["success"] = false
+                    responseData["error"] = "Dict not found: \(dictName)"
+                    break
+                }
+                defer { fh.closeFile() }
+                let totalSize = Int(fh.seekToEndOfFile())
+                fh.seek(toFileOffset: UInt64(offset))
+                let data = fh.readData(ofLength: min(chunkSize, totalSize - offset))
+                responseData["data"] = data.base64EncodedString()
+                responseData["totalSize"] = totalSize
+                responseData["success"] = true
+                // 10% ごとにログ出力（チャンクが多いため間引き）
+                let pct = totalSize > 0 ? (offset + data.count) * 100 / totalSize : 0
+                if pct % 10 < 2 || offset + data.count >= totalSize {
+                    NSLog("[FurikanaExt] read_dictionary_chunk: %d/%d (%d%%)", offset + data.count, totalSize, pct)
+                }
 
             default:
                 responseData["success"] = false

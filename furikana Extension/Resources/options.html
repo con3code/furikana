@@ -40,12 +40,13 @@
                     </div>
                 </label>
 
-                <!-- UniDic（準備中） -->
-                <label class="dictionary-item dict-radio-label disabled">
-                    <input type="radio" name="dictType" value="unidic" disabled>
+                <!-- Sudachi辞書 (WASM) -->
+                <label class="dictionary-item dict-radio-label">
+                    <input type="radio" name="dictType" value="sudachi">
                     <div class="dict-info">
-                        <h3>UniDic</h3>
-                        <p class="dict-description">準備中</p>
+                        <h3>Sudachi辞書（WASM）</h3>
+                        <p id="sudachi-dict-mode" class="dict-size"></p>
+                        <p class="dict-description">高精度な形態素解析（初回読み込みに数秒かかります）</p>
                     </div>
                 </label>
             </div>
@@ -63,15 +64,7 @@
                 </select>
             </div>
 
-            <div class="setting-item">
-                <label for="unit-type">単位</label>
-                <select id="unit-type">
-                    <option value="long">長単位（推奨）</option>
-                    <option value="short">短単位</option>
-                </select>
-            </div>
-
-            <div class="setting-row">
+            <div style="margin-top: 32px;" class="setting-row">
                 <div class="setting-item setting-half">
                     <label for="ruby-size">ルビサイズ: <span id="ruby-size-value">50</span>%</label>
                     <input type="range" id="ruby-size" min="30" max="100" step="5" value="50">

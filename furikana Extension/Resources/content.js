@@ -1,4 +1,5 @@
 // ふりがな機能のメインスクリプト
+console.log('[Furikana] content.js loading on', location.hostname);
 
 let furikanaEnabled = false;
 let furikanaGeneration = 0; // 辞書切替え等で増加、インフライトの旧結果を破棄するため
@@ -709,9 +710,11 @@ async function loadSettings() {
 
     settings = stored;
     applyRubyCSS();
+    console.log('[Furikana] Settings loaded: dictType=' + stored.dictType + ', autoEnable=' + stored.autoEnable);
 
     // 自動有効化
     if (stored.autoEnable) {
+        console.log('[Furikana] Auto-enabling furigana');
         await toggleFurigana();
     }
 }
@@ -997,13 +1000,18 @@ function splitKanjiReading(surface, reading) {
 // バッチトークン化リクエスト（複数テキストを1回の通信で送信）
 // 接続エラー時は1回だけリトライ（background.js再起動の猶予を与える）
 async function sendBatchTokenize(texts, retry = 0) {
-    if (requestQueue.isFallbackMode()) return null;
+    if (requestQueue.isFallbackMode()) {
+        console.log('[Furikana] sendBatchTokenize: fallback mode, skipping');
+        return null;
+    }
+    console.log('[Furikana] sendBatchTokenize: sending', texts.length, 'texts, retry=' + retry);
     try {
         return await requestQueue.enqueue(async () => {
             const response = await browser.runtime.sendMessage({
                 action: 'tokenizeBatch',
                 texts: texts
             });
+            console.log('[Furikana] sendBatchTokenize: response success=' + (response && response.success));
             if (response && response.success && response.results) {
                 return response.results;
             }
@@ -1012,7 +1020,7 @@ async function sendBatchTokenize(texts, retry = 0) {
     } catch (error) {
         // 接続エラーかつリトライ未実施 → 2秒待ってから1回リトライ
         if (isConnectionError(error) && retry < 1) {
-            console.warn('[Furikana] Connection error in sendBatchTokenize, retrying in 2s...');
+            console.warn('[Furikana] Connection error in sendBatchTokenize, retrying in 2s...', error.message);
             await new Promise(resolve => setTimeout(resolve, 2000));
             return sendBatchTokenize(texts, retry + 1);
         }
@@ -1206,6 +1214,7 @@ function removeFurigana() {
 
 // ふりがなの表示/非表示をトグル
 async function toggleFurigana() {
+    console.log('[Furikana] toggleFurigana called, currently:', furikanaEnabled, 'dictType:', settings.dictType);
     if (furikanaEnabled) {
         // ふりがなを削除
         removeFurigana();

@@ -27,3 +27,99 @@ body {
     font: -apple-system-short-body;
     text-align: center;
 }
+
+/* 辞書管理セクション */
+#dict-section {
+    width: 100%;
+    max-width: 320px;
+    text-align: center;
+    background: rgba(0, 0, 0, 0.04);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 4px;
+}
+
+.dict-heading {
+    font-weight: 600;
+    font-size: 15px;
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+
+.dict-status {
+    font-size: 13px;
+    color: #6e6e73;
+    margin: 4px 0 12px;
+}
+
+#dict-size-select {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+
+#dict-size-select label {
+    cursor: pointer;
+}
+
+.progress-track {
+    height: 6px;
+    background: #e5e5ea;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 8px 0 4px;
+}
+
+.progress-fill {
+    height: 100%;
+    background: #007aff;
+    border-radius: 3px;
+    width: 0;
+    transition: width 0.3s ease;
+}
+
+.dict-progress-label {
+    font-size: 12px;
+    color: #8e8e93;
+    margin: 2px 0 8px;
+}
+
+#dict-section button {
+    font: -apple-system-short-body;
+    font-size: 14px;
+    padding: 8px 20px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin: 4px;
+}
+
+#dict-download-btn {
+    background: #007aff;
+    color: #fff;
+}
+
+#dict-cancel-btn {
+    background: #e5e5ea;
+    color: #333;
+}
+
+#dict-delete-btn {
+    background: #ff3b30;
+    color: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+    #dict-section {
+        background: rgba(255, 255, 255, 0.08);
+    }
+    .progress-track {
+        background: #38383a;
+    }
+    #dict-cancel-btn {
+        background: #38383a;
+        color: #fff;
+    }
+}

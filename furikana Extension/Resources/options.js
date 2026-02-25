@@ -127,7 +127,6 @@ async function loadSettings() {
     const s = await browser.storage.local.get(DEFAULTS);
 
     document.getElementById('reading-type').value = s.readingType;
-    document.getElementById('unit-type').value = s.unitType;
     document.getElementById('auto-enable').checked = s.autoEnable;
     document.getElementById('reverse-ruby').checked = s.reverseRuby;
     document.getElementById('reading-rules').checked = s.readingRules;
@@ -150,7 +149,7 @@ async function saveSettings() {
     try {
         await browser.storage.local.set({
             readingType: document.getElementById('reading-type').value,
-            unitType: document.getElementById('unit-type').value,
+            unitType: 'long',
             autoEnable: document.getElementById('auto-enable').checked,
             reverseRuby: document.getElementById('reverse-ruby').checked,
             readingRules: document.getElementById('reading-rules').checked,
@@ -199,6 +198,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadSettings();
 
+        // Sudachi 辞書モード表示
+        if (typeof browser !== 'undefined' && browser.runtime && browser.runtime.sendMessage) {
+            browser.runtime.sendMessage({ action: 'getSudachiStatus' }).then(function(res) {
+                var el = document.getElementById('sudachi-dict-mode');
+                if (!el) return;
+                if (res && res.ready) {
+                    var mode = res.dictMode === 'full' ? 'Full辞書' :
+                               res.dictMode === 'core' ? 'Core辞書' : 'Small辞書（内蔵）';
+                    el.textContent = mode + ' 使用中';
+                } else {
+                    el.textContent = '';
+                }
+            }).catch(function() {});
+        }
+
         for (const id of SLIDERS) {
             document.getElementById(id).addEventListener('input', () => {
                 updatePreview();
@@ -217,10 +231,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         document.getElementById('reading-type').addEventListener('change', () => {
             browser.storage.local.set({ readingType: document.getElementById('reading-type').value }).catch(e => console.error('Save error:', e));
-        });
-
-        document.getElementById('unit-type').addEventListener('change', () => {
-            browser.storage.local.set({ unitType: document.getElementById('unit-type').value }).catch(e => console.error('Save error:', e));
         });
 
         // 辞書タイプ（ラジオボタン）
