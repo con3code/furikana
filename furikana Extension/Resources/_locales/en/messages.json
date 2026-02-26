@@ -6,5 +6,107 @@
     "extension_description": {
         "message": "Adds furigana (reading annotations) to kanji on Japanese web pages.",
         "description": "Description of what the extension does."
+    },
+    "options_title": {
+        "message": "Furigana Settings",
+        "description": "Options page title"
+    },
+    "options_save": {
+        "message": "Save",
+        "description": "Save settings button"
+    },
+    "options_dict_heading": {
+        "message": "Dictionary",
+        "description": "Dictionary section heading"
+    },
+    "options_dict_description": {
+        "message": "Select the dictionary for text analysis.",
+        "description": "Dictionary section description"
+    },
+    "options_dict_system": {
+        "message": "System Dictionary",
+        "description": "System tokenizer option"
+    },
+    "options_dict_system_desc": {
+        "message": "Built-in Japanese dictionary (lightweight, fast)",
+        "description": "System tokenizer description"
+    },
+    "options_dict_ipadic": {
+        "message": "IPA Dictionary",
+        "description": "IPA dictionary option"
+    },
+    "options_dict_ipadic_desc": {
+        "message": "Full-featured Japanese dictionary (takes a few seconds to load initially)",
+        "description": "IPA dictionary description"
+    },
+    "options_dict_sudachi": {
+        "message": "Sudachi Dictionary",
+        "description": "Sudachi dictionary option"
+    },
+    "options_dict_sudachi_desc": {
+        "message": "Large vocabulary Japanese dictionary (takes a few seconds to load initially)",
+        "description": "Sudachi dictionary description"
+    },
+    "options_display_heading": {
+        "message": "Display",
+        "description": "Display section heading"
+    },
+    "options_reading_type": {
+        "message": "Reading type",
+        "description": "Reading type label"
+    },
+    "options_reading_hiragana": {
+        "message": "Hiragana",
+        "description": "Hiragana option"
+    },
+    "options_reading_romaji": {
+        "message": "Romaji",
+        "description": "Romaji option"
+    },
+    "options_ruby_size": {
+        "message": "Ruby size: $VALUE$%",
+        "description": "Ruby size slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_ruby_gap": {
+        "message": "Ruby gap: $VALUE$px",
+        "description": "Ruby gap slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_line_height": {
+        "message": "Line height: $VALUE$",
+        "description": "Line height slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_line_spacing": {
+        "message": "Line spacing: $VALUE$px",
+        "description": "Line spacing slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_box_padding": {
+        "message": "Box padding: $VALUE$em",
+        "description": "Box padding slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_box_margin": {
+        "message": "Box margin: $VALUE$em",
+        "description": "Box margin slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_reset": {
+        "message": "Reset",
+        "description": "Reset sliders button"
+    },
+    "options_auto_enable": {
+        "message": "Automatically add furigana on page load",
+        "description": "Auto-enable checkbox"
+    },
+    "options_reverse_ruby": {
+        "message": "Hiragana main mode",
+        "description": "Reverse ruby checkbox"
+    },
+    "options_reading_rules": {
+        "message": "Apply reading correction rules (rule-based)",
+        "description": "Reading rules checkbox"
     }
 }

@@ -3,20 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ふりがな設定</title>
+    <title data-i18n="options_title">ふりがな設定</title>
     <link rel="stylesheet" href="options.css">
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>ふりがな設定</h1>
-            <button id="save-settings" class="btn-primary">設定保存</button>
+            <h1 data-i18n="options_title">ふりがな設定</h1>
+            <button id="save-settings" class="btn-primary" data-i18n="options_save">設定保存</button>
         </div>
 
         <!-- 辞書選択セクション -->
         <section class="section">
-            <h2>辞書設定</h2>
-            <p class="description">
+            <h2 data-i18n="options_dict_heading">辞書設定</h2>
+            <p class="description" data-i18n="options_dict_description">
                 解析に使用する辞書を選択してください。
             </p>
 
@@ -25,8 +25,8 @@
                 <label class="dictionary-item dict-radio-label">
                     <input type="radio" name="dictType" value="system">
                     <div class="dict-info">
-                        <h3>システム解析</h3>
-                        <p class="dict-description">iOS標準の日本語解析を使用（軽量・高速）</p>
+                        <h3 data-i18n="options_dict_system">システム辞書</h3>
+                        <p class="dict-description" data-i18n="options_dict_system_desc">システム標準の日本語辞書（軽量・高速）</p>
                     </div>
                 </label>
 
@@ -34,19 +34,18 @@
                 <label class="dictionary-item dict-radio-label">
                     <input type="radio" name="dictType" value="ipadic">
                     <div class="dict-info">
-                        <h3>IPA辞書（内蔵）</h3>
-                        <p class="dict-size">17 MB</p>
-                        <p class="dict-description">初回読み込みに数秒かかります</p>
+                        <h3 data-i18n="options_dict_ipadic">IPA辞書</h3>
+                        <p class="dict-description" data-i18n="options_dict_ipadic_desc">充実した日本語辞書（初回読み込みに数秒かかります）</p>
                     </div>
                 </label>
 
-                <!-- Sudachi辞書 (WASM) -->
+                <!-- Sudachi辞書 -->
                 <label class="dictionary-item dict-radio-label">
                     <input type="radio" name="dictType" value="sudachi">
                     <div class="dict-info">
-                        <h3>Sudachi辞書（WASM）</h3>
+                        <h3 data-i18n="options_dict_sudachi">Sudachi辞書</h3>
                         <p id="sudachi-dict-mode" class="dict-size"></p>
-                        <p class="dict-description">高精度な形態素解析（初回読み込みに数秒かかります）</p>
+                        <p class="dict-description" data-i18n="options_dict_sudachi_desc">豊富な語数の日本語辞書（初回読み込みに数秒かかります）</p>
                     </div>
                 </label>
             </div>
@@ -54,51 +53,51 @@
 
         <!-- 表示設定セクション -->
         <section class="section">
-            <h2>表示設定</h2>
+            <h2 data-i18n="options_display_heading">表示設定</h2>
 
             <div class="setting-item">
-                <label for="reading-type">読み仮名の種類</label>
+                <label for="reading-type" data-i18n="options_reading_type">読み仮名の種類</label>
                 <select id="reading-type">
-                    <option value="hiragana">ひらがな</option>
-                    <option value="romaji">ローマ字</option>
+                    <option value="hiragana" data-i18n="options_reading_hiragana">ひらがな</option>
+                    <option value="romaji" data-i18n="options_reading_romaji">ローマ字</option>
                 </select>
             </div>
 
             <div style="margin-top: 32px;" class="setting-row">
                 <div class="setting-item setting-half">
-                    <label for="ruby-size">ルビサイズ: <span id="ruby-size-value">50</span>%</label>
+                    <label for="ruby-size" data-i18n-template="options_ruby_size">ルビサイズ: <span id="ruby-size-value">50</span>%</label>
                     <input type="range" id="ruby-size" min="30" max="100" step="5" value="50">
                 </div>
                 <div class="setting-item setting-half">
-                    <label for="ruby-gap">ルビ行間隔: <span id="ruby-gap-value">1</span>px</label>
+                    <label for="ruby-gap" data-i18n-template="options_ruby_gap">ルビ行間隔: <span id="ruby-gap-value">1</span>px</label>
                     <input type="range" id="ruby-gap" min="-16" max="16" step="1" value="1">
                 </div>
             </div>
 
             <div class="setting-row">
                 <div class="setting-item setting-half">
-                    <label for="ruby-line-height">行高さ: <span id="ruby-line-height-value">1.30</span></label>
+                    <label for="ruby-line-height" data-i18n-template="options_line_height">行高さ: <span id="ruby-line-height-value">1.30</span></label>
                     <input type="range" id="ruby-line-height" min="1.0" max="3.0" step="0.05" value="1.3">
                 </div>
                 <div class="setting-item setting-half">
-                    <label for="ruby-min-height">行間隔: <span id="ruby-min-height-value">12</span>px</label>
+                    <label for="ruby-min-height" data-i18n-template="options_line_spacing">行間隔: <span id="ruby-min-height-value">12</span>px</label>
                     <input type="range" id="ruby-min-height" min="0" max="60" step="2" value="12">
                 </div>
             </div>
 
             <div class="setting-row">
                 <div class="setting-item setting-half">
-                    <label for="ruby-box-padding">ボックスpadding: <span id="ruby-box-padding-value">0.1</span>em</label>
+                    <label for="ruby-box-padding" data-i18n-template="options_box_padding">ボックスpadding: <span id="ruby-box-padding-value">0.1</span>em</label>
                     <input type="range" id="ruby-box-padding" min="-2.0" max="4.0" step="0.05" value="0.15">
                 </div>
                 <div class="setting-item setting-half">
-                    <label for="ruby-box-margin">ボックスmargin: <span id="ruby-box-margin-value">0.0</span>em</label>
+                    <label for="ruby-box-margin" data-i18n-template="options_box_margin">ボックスmargin: <span id="ruby-box-margin-value">0.0</span>em</label>
                     <input type="range" id="ruby-box-margin" min="-2.0" max="4.0" step="0.05" value="0">
                 </div>
             </div>
 
             <div class="setting-item" style="text-align: right;">
-                <button id="reset-sliders" class="btn-reset">リセット</button>
+                <button id="reset-sliders" class="btn-reset" data-i18n="options_reset">リセット</button>
             </div>
 
             <div class="ruby-preview">
@@ -111,21 +110,21 @@
             <div class="setting-item">
                 <label>
                     <input type="checkbox" id="auto-enable">
-                    ページ読み込み時に自動的にふりがなを表示
+                    <span data-i18n="options_auto_enable">ページ読み込み時に自動的にふりがなを表示</span>
                 </label>
             </div>
 
             <div class="setting-item">
                 <label>
                     <input type="checkbox" id="reverse-ruby">
-                    ひらがなメインモード
+                    <span data-i18n="options_reverse_ruby">ひらがなメインモード</span>
                 </label>
             </div>
 
             <div class="setting-item">
                 <label>
                     <input type="checkbox" id="reading-rules">
-                    読み補正ルールを適用（ルールベース）
+                    <span data-i18n="options_reading_rules">読み補正ルールを適用（ルールベース）</span>
                 </label>
             </div>
         </section>

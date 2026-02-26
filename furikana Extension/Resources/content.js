@@ -933,17 +933,80 @@ function groupToLongUnits(tokens) {
     return longUnits;
 }
 
+// 数字文字列の可能な読みを生成（数字セグメントのルビ省略用）
+function _digitToReadings(numStr) {
+    // 全角→半角
+    const half = numStr.replace(/[０-９]/g, ch =>
+        String.fromCharCode(ch.charCodeAt(0) - 0xFF10 + 0x30));
+    const n = parseInt(half, 10);
+    if (isNaN(n) || n < 0 || n > 9999) return null;
+
+    // 単一数字の読みバリエーション（促音変化含む）
+    const SINGLE = {
+        0: ['れい', 'ゼロ', 'まる', 'ぜろ'],
+        1: ['いち', 'いっ', 'ひと', 'ひ'],
+        2: ['に', 'ふた', 'ふ'],
+        3: ['さん', 'み'],
+        4: ['よん', 'し', 'よ'],
+        5: ['ご', 'いつ'],
+        6: ['ろく', 'ろっ', 'む'],
+        7: ['なな', 'しち', 'なの'],
+        8: ['はち', 'はっ', 'や', 'よう'],
+        9: ['きゅう', 'く', 'ここの'],
+    };
+    if (n <= 9) return SINGLE[n];
+
+    // 10以上: 標準読みを合成
+    const ones = ['', 'いち', 'に', 'さん', 'よん', 'ご', 'ろく', 'なな', 'はち', 'きゅう'];
+    function compose(num) {
+        if (num === 0) return '';
+        let r = '';
+        if (num >= 1000) {
+            const t = Math.floor(num / 1000);
+            r += (t === 1 ? '' : t === 3 ? 'さん' : t === 8 ? 'はっ' : ones[t]) +
+                 (t === 3 ? 'ぜん' : t === 8 ? 'せん' : 'せん');
+            num %= 1000;
+        }
+        if (num >= 100) {
+            const h = Math.floor(num / 100);
+            if (h === 3) r += 'さんびゃく';
+            else if (h === 6) r += 'ろっぴゃく';
+            else if (h === 8) r += 'はっぴゃく';
+            else r += (h === 1 ? '' : ones[h]) + 'ひゃく';
+            num %= 100;
+        }
+        if (num >= 10) {
+            const t = Math.floor(num / 10);
+            r += (t === 1 ? '' : ones[t]) + 'じゅう';
+            num %= 10;
+        }
+        if (num > 0) r += ones[num];
+        return r;
+    }
+
+    const standard = compose(n);
+    const readings = [standard];
+    // 末尾の促音変化バリエーション（いち→いっ、く→っ、う→っ 等）
+    if (standard.endsWith('ち')) readings.push(standard.slice(0, -1) + 'っ');
+    if (standard.endsWith('く')) readings.push(standard.slice(0, -1) + 'っ');
+    if (standard.endsWith('じゅう'))
+        readings.push(standard.slice(0, -1) + 'っ');  // じゅう→じゅっ
+    if (n === 10) readings.push('じっ');  // じゅう→じっ
+    return readings;
+}
+
 // 漢字と送り仮名を分離し、漢字部分のみにルビを振るためのセグメント分割
 // kuroshiro方式: surface の漢字/非漢字セグメントから正規表現を構築し、reading とマッチ
 function splitKanjiReading(surface, reading) {
     const isKanji = ch => /[\u4E00-\u9FAF\u3400-\u4DBF]/.test(ch);
+    const isDigit = ch => /[0-9０-９]/.test(ch);
 
-    // surface を漢字セグメントと非漢字セグメントに分割
+    // surface を漢字/かな/数字セグメントに分割
     const segments = [];
     let curType = null;
     let curText = '';
     for (const ch of surface) {
-        const type = isKanji(ch) ? 'kanji' : 'kana';
+        const type = isKanji(ch) ? 'kanji' : isDigit(ch) ? 'digit' : 'kana';
         if (type !== curType && curText) {
             segments.push({ type: curType, text: curText });
             curText = '';
@@ -962,11 +1025,24 @@ function splitKanjiReading(surface, reading) {
         return [{ text: surface, reading }];
     }
 
-    // 正規表現を構築: 漢字→(.+)、非漢字→リテラル（ひらがな化してマッチ）
+    // 正規表現を構築: 漢字→(.+)、数字→(?:読み1|読み2|...)、かな→リテラル
     let regexStr = '^';
+    let hasDigitSegment = false;
     for (const seg of segments) {
         if (seg.type === 'kanji') {
             regexStr += '(.+)';
+        } else if (seg.type === 'digit') {
+            const readings = _digitToReadings(seg.text);
+            if (readings && readings.length > 0) {
+                // 長い読みを先にして部分一致を防ぐ
+                const sorted = [...readings].sort((a, b) => b.length - a.length);
+                const escaped = sorted.map(r => r.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                regexStr += '(?:' + escaped.join('|') + ')';
+                hasDigitSegment = true;
+            } else {
+                // 読み生成できない数字 → かなとして扱う（リテラルマッチ）
+                regexStr += seg.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
         } else {
             // カタカナ送り仮名はひらがなに変換してマッチ
             const hiragana = katakanaToHiragana(seg.text);
@@ -984,6 +1060,7 @@ function splitKanjiReading(surface, reading) {
                 if (seg.type === 'kanji') {
                     result.push({ text: seg.text, reading: match[groupIdx++] });
                 } else {
+                    // 数字・かな → ルビなし
                     result.push({ text: seg.text, reading: null });
                 }
             }

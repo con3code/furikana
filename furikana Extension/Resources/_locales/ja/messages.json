@@ -6,5 +6,107 @@
     "extension_description": {
         "message": "Webページの漢字にふりがな（読み仮名）を表示します。",
         "description": "Description of what the extension does."
+    },
+    "options_title": {
+        "message": "ふりがな設定",
+        "description": "Options page title"
+    },
+    "options_save": {
+        "message": "設定保存",
+        "description": "Save settings button"
+    },
+    "options_dict_heading": {
+        "message": "辞書設定",
+        "description": "Dictionary section heading"
+    },
+    "options_dict_description": {
+        "message": "解析に使用する辞書を選択してください。",
+        "description": "Dictionary section description"
+    },
+    "options_dict_system": {
+        "message": "システム辞書",
+        "description": "System tokenizer option"
+    },
+    "options_dict_system_desc": {
+        "message": "システム標準の日本語辞書（軽量・高速）",
+        "description": "System tokenizer description"
+    },
+    "options_dict_ipadic": {
+        "message": "IPA辞書",
+        "description": "IPA dictionary option"
+    },
+    "options_dict_ipadic_desc": {
+        "message": "充実した日本語辞書（初回読み込みに数秒かかります）",
+        "description": "IPA dictionary description"
+    },
+    "options_dict_sudachi": {
+        "message": "Sudachi辞書",
+        "description": "Sudachi dictionary option"
+    },
+    "options_dict_sudachi_desc": {
+        "message": "豊富な語数の日本語辞書（初回読み込みに数秒かかります）",
+        "description": "Sudachi dictionary description"
+    },
+    "options_display_heading": {
+        "message": "表示設定",
+        "description": "Display section heading"
+    },
+    "options_reading_type": {
+        "message": "読み仮名の種類",
+        "description": "Reading type label"
+    },
+    "options_reading_hiragana": {
+        "message": "ひらがな",
+        "description": "Hiragana option"
+    },
+    "options_reading_romaji": {
+        "message": "ローマ字",
+        "description": "Romaji option"
+    },
+    "options_ruby_size": {
+        "message": "ルビサイズ: $VALUE$%",
+        "description": "Ruby size slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_ruby_gap": {
+        "message": "ルビ行間隔: $VALUE$px",
+        "description": "Ruby gap slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_line_height": {
+        "message": "行高さ: $VALUE$",
+        "description": "Line height slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_line_spacing": {
+        "message": "行間隔: $VALUE$px",
+        "description": "Line spacing slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_box_padding": {
+        "message": "ボックスpadding: $VALUE$em",
+        "description": "Box padding slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_box_margin": {
+        "message": "ボックスmargin: $VALUE$em",
+        "description": "Box margin slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "options_reset": {
+        "message": "リセット",
+        "description": "Reset sliders button"
+    },
+    "options_auto_enable": {
+        "message": "ページ読み込み時に自動的にふりがなを表示",
+        "description": "Auto-enable checkbox"
+    },
+    "options_reverse_ruby": {
+        "message": "ひらがなメインモード",
+        "description": "Reverse ruby checkbox"
+    },
+    "options_reading_rules": {
+        "message": "読み補正ルールを適用（ルールベース）",
+        "description": "Reading rules checkbox"
     }
 }

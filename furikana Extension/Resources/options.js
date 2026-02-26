@@ -165,13 +165,16 @@ async function saveSettings() {
         console.error('Save failed:', e);
     }
 
-    // storage.onChanged が発火する時間を確保してから画面遷移
-    await new Promise(resolve => setTimeout(resolve, 200));
-
-    // WKWebView（ホストアプリ）内なら goBack、拡張機能内なら window.close()
+    // WKWebView（ホストアプリ）内なら goBack、拡張機能内なら App Group 即時同期後に window.close()
     if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.controller) {
         window.webkit.messageHandlers.controller.postMessage({ action: 'goBack' });
     } else {
+        // Safari 拡張コンテキスト: App Group へ即時同期してから画面遷移
+        try {
+            await browser.runtime.sendMessage({ action: 'forceSyncToAppGroup' });
+        } catch (e) {
+            console.warn('Force sync failed:', e);
+        }
         window.close();
     }
 }
@@ -193,9 +196,39 @@ function resetSliders() {
     queueSaveSliders();
 }
 
+// i18n: browser.i18n が利用可能な場合、data-i18n 属性のテキストを置換
+// ホストアプリ（WKWebView）では browser.i18n が存在しないため、HTMLのデフォルト（日本語）がそのまま表示される
+function applyI18n() {
+    if (typeof browser === 'undefined' || !browser.i18n || !browser.i18n.getMessage) return;
+
+    // data-i18n: テキスト全体を置換
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const msg = browser.i18n.getMessage(key);
+        if (msg) el.textContent = msg;
+    });
+
+    // data-i18n-template: スライダーラベル用（span を含むテンプレート）
+    // メッセージ内の $VALUE$ を既存の span 要素で置換する
+    document.querySelectorAll('[data-i18n-template]').forEach(el => {
+        const key = el.getAttribute('data-i18n-template');
+        const msg = browser.i18n.getMessage(key, ['__PLACEHOLDER__']);
+        if (!msg) return;
+        const span = el.querySelector('span');
+        if (!span) return;
+        const spanHTML = span.outerHTML;
+        el.innerHTML = msg.replace('__PLACEHOLDER__', spanHTML);
+    });
+
+    // title 要素
+    const titleMsg = browser.i18n.getMessage('options_title');
+    if (titleMsg) document.title = titleMsg;
+}
+
 // 初期化
 document.addEventListener('DOMContentLoaded', async () => {
     try {
+        applyI18n();
         await loadSettings();
 
         // Sudachi 辞書モード表示
@@ -204,9 +237,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 var el = document.getElementById('sudachi-dict-mode');
                 if (!el) return;
                 if (res && res.ready) {
-                    var mode = res.dictMode === 'full' ? 'Full辞書' :
-                               res.dictMode === 'core' ? 'Core辞書' : 'Small辞書（内蔵）';
-                    el.textContent = mode + ' 使用中';
+                    var hasI18n = typeof browser !== 'undefined' && browser.i18n && browser.i18n.getMessage;
+                    var mode = res.dictMode === 'full' ? (hasI18n ? 'Full' : 'Full辞書') :
+                               res.dictMode === 'core' ? (hasI18n ? 'Core' : 'Core辞書') :
+                               (hasI18n ? 'Small (built-in)' : 'Small辞書（内蔵）');
+                    el.textContent = mode + (hasI18n ? ' active' : ' 使用中');
                 } else {
                     el.textContent = '';
                 }

@@ -185,6 +185,27 @@ try {
             return true;
         }
 
+        // 設定を即座に App Group へ同期（options.js の saveSettings から呼ばれる）
+        // デバウンスをバイパスして確実に同期完了を待つ
+        if (request.action === 'forceSyncToAppGroup') {
+            (async () => {
+                try {
+                    if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
+                    const allSettings = await browser.storage.local.get(null);
+                    await browser.runtime.sendNativeMessage('con3.furikana', {
+                        action: 'syncSettings',
+                        settings: allSettings
+                    });
+                    console.log('[Furikana] Force synced settings to App Group');
+                    sendResponse({ success: true });
+                } catch (e) {
+                    console.warn('[Furikana] Force sync to App Group failed:', e);
+                    sendResponse({ success: false, error: e.message });
+                }
+            })();
+            return true;
+        }
+
         // Sudachi 辞書ステータス問い合わせ（options.js から）
         if (request.action === 'getSudachiStatus') {
             sendResponse({

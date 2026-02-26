@@ -54,12 +54,216 @@ function mapSudachiPos(posFirst) {
     return SUDACHI_POS_MAP[posFirst] || 'Other';
 }
 
+// --- 数字の正しい読みを合成 ---
+// Sudachi は2桁以上の数字を桁ごとに読む（100→イチレイレイ）ため、正しい読み（ヒャク）に変換する
+function _composeNumberReading(numStr) {
+    // 全角→半角
+    const half = numStr.replace(/[０-９]/g, ch =>
+        String.fromCharCode(ch.charCodeAt(0) - 0xFF10 + 0x30));
+    const n = parseInt(half, 10);
+    if (isNaN(n) || n < 0 || n > 99999999) return null; // 1億未満
+
+    if (n <= 9) return null; // 1桁はSudachiが正しい読みを返すので変換不要
+
+    const ONES = ['', 'イチ', 'ニ', 'サン', 'ヨン', 'ゴ', 'ロク', 'ナナ', 'ハチ', 'キュウ'];
+
+    function compose(num) {
+        if (num === 0) return '';
+        let r = '';
+
+        // 千万の位 (10,000,000)
+        if (num >= 10000000) {
+            const d = Math.floor(num / 10000000);
+            r += (d === 1 ? '' : ONES[d]) + 'センマン';
+            num %= 10000000;
+            if (num === 0) return r;
+        }
+        // 百万の位 (1,000,000)
+        if (num >= 1000000) {
+            const d = Math.floor(num / 1000000);
+            if (d === 3) r += 'サンビャクマン';
+            else if (d === 6) r += 'ロッピャクマン';
+            else if (d === 8) r += 'ハッピャクマン';
+            else r += (d === 1 ? '' : ONES[d]) + 'ヒャクマン';
+            num %= 1000000;
+            if (num === 0) return r;
+        }
+        // 十万の位 (100,000)
+        if (num >= 100000) {
+            const d = Math.floor(num / 100000);
+            r += (d === 1 ? '' : ONES[d]) + 'ジュウマン';
+            num %= 100000;
+            if (num === 0) return r;
+        }
+        // 万の位 (10,000)
+        if (num >= 10000) {
+            const d = Math.floor(num / 10000);
+            r += (d === 1 ? '' : ONES[d]) + 'マン';
+            num %= 10000;
+            if (num === 0) return r;
+        }
+        // 千の位
+        if (num >= 1000) {
+            const d = Math.floor(num / 1000);
+            if (d === 3) r += 'サンゼン';
+            else if (d === 8) r += 'ハッセン';
+            else r += (d === 1 ? '' : ONES[d]) + 'セン';
+            num %= 1000;
+        }
+        // 百の位
+        if (num >= 100) {
+            const d = Math.floor(num / 100);
+            if (d === 3) r += 'サンビャク';
+            else if (d === 6) r += 'ロッピャク';
+            else if (d === 8) r += 'ハッピャク';
+            else r += (d === 1 ? '' : ONES[d]) + 'ヒャク';
+            num %= 100;
+        }
+        // 十の位
+        if (num >= 10) {
+            const d = Math.floor(num / 10);
+            r += (d === 1 ? '' : ONES[d]) + 'ジュウ';
+            num %= 10;
+        }
+        // 一の位
+        if (num > 0) {
+            r += ONES[num];
+        }
+        return r;
+    }
+
+    return compose(n);
+}
+
+// Sudachi の一桁読みバリエーション（長い順にソートして部分一致を防ぐ）
+const _DIGIT_VARIANTS = {
+    '0': ['ゼロ', 'マル', 'レイ'], '1': ['イチ', 'ヒト', 'ヒ'], '2': ['フタ', 'ニ', 'フ'],
+    '3': ['サン', 'ミ'], '4': ['ヨン', 'シ', 'ヨ'], '5': ['イツ', 'ゴ'],
+    '6': ['ムイ', 'ロク', 'ム'], '7': ['シチ', 'ナノ', 'ナナ'], '8': ['ハチ', 'ヤ', 'ヨウ'],
+    '9': ['キュウ', 'ク', 'ココノ'],
+};
+// 全角キーも追加
+for (let i = 0; i <= 9; i++) {
+    _DIGIT_VARIANTS[String.fromCharCode(0xFF10 + i)] = _DIGIT_VARIANTS[String(i)];
+}
+
+// 再帰的に各桁の読みをマッチングし、消費した位置を返す（-1 = マッチ失敗）
+function _findDigitReadingEnd(digitChars, readingStr, pos) {
+    if (digitChars.length === 0) return pos;
+    const ch = digitChars[0];
+    const variants = _DIGIT_VARIANTS[ch];
+    if (!variants) return -1;
+    for (const v of variants) {
+        if (readingStr.startsWith(v, pos)) {
+            const result = _findDigitReadingEnd(digitChars.slice(1), readingStr, pos + v.length);
+            if (result !== -1) return result;
+        }
+    }
+    return -1;
+}
+
+// surface 内の全ての2桁以上の数字列について、桁ごと読みを合成読みに置換する
+// 例: surface="5000億" reading="ゴレイレイレイオク" → "ゴセンオク"
+// 例: surface="1億2000万" reading="イチオクニレイレイレイマン" → "イチオクニセンマン"
+function _fixNumberReading(surface, reading) {
+    // surface を数字セグメントと非数字セグメントに分割
+    const segments = [];
+    const re = /([0-9０-９]+)|([^0-9０-９]+)/g;
+    let m;
+    while ((m = re.exec(surface)) !== null) {
+        if (m[1]) {
+            segments.push({ type: 'digit', text: m[1] });
+        } else {
+            segments.push({ type: 'other', text: m[2] });
+        }
+    }
+
+    // 2桁以上の数字セグメントがなければ補正不要
+    if (!segments.some(s => s.type === 'digit' && s.text.length >= 2)) return reading;
+
+    // reading 上の位置を追跡しながらセグメントごとに処理
+    // 戦略: 数字セグメント → 桁ごと読みを検出して合成読みに置換
+    //       非数字セグメント → 次の数字セグメントまでの残り読みをそのまま保持
+    let readPos = 0;
+    let result = '';
+
+    for (let i = 0; i < segments.length; i++) {
+        const seg = segments[i];
+
+        if (seg.type === 'digit') {
+            const digitChars = [...seg.text];
+
+            if (seg.text.length >= 2) {
+                // 2桁以上: 桁ごと読みを検出
+                const endPos = _findDigitReadingEnd(digitChars, reading, readPos);
+                const composed = _composeNumberReading(seg.text);
+
+                if (endPos !== -1 && composed) {
+                    // 桁ごと読みがマッチ → 合成読みに置換
+                    result += composed;
+                    readPos = endPos;
+                } else {
+                    // マッチ失敗 → 元の読みをそのまま使用（Sudachiが正しい読みを返している）
+                    // 残りの処理を安全に行うため、桁ごとマッチを試みて位置を進める
+                    if (endPos !== -1) {
+                        result += reading.substring(readPos, endPos);
+                        readPos = endPos;
+                    } else {
+                        // 完全にマッチ失敗 → これ以上の処理は不安全なので元の reading を返す
+                        return reading;
+                    }
+                }
+            } else {
+                // 1桁: Sudachiの読みをそのまま使用、位置だけ進める
+                const endPos = _findDigitReadingEnd(digitChars, reading, readPos);
+                if (endPos !== -1) {
+                    result += reading.substring(readPos, endPos);
+                    readPos = endPos;
+                } else {
+                    return reading; // マッチ失敗 → 元の reading を返す
+                }
+            }
+        } else {
+            // 非数字セグメント: 次の数字セグメントの読み開始位置を探して、間の読みを取る
+            const nextDigitSeg = segments.slice(i + 1).find(s => s.type === 'digit');
+            if (!nextDigitSeg) {
+                // 最後の非数字セグメント → 残りの読みを全て使う
+                result += reading.substring(readPos);
+                readPos = reading.length;
+            } else {
+                // 次の数字セグメントの桁ごと読みが始まる位置を探す
+                const nextDigitChars = [...nextDigitSeg.text];
+                let foundPos = -1;
+                // readPos から順に探索して、次の数字読みが始まる位置を見つける
+                for (let p = readPos; p < reading.length; p++) {
+                    if (_findDigitReadingEnd(nextDigitChars, reading, p) !== -1) {
+                        foundPos = p;
+                        break;
+                    }
+                }
+                if (foundPos !== -1) {
+                    result += reading.substring(readPos, foundPos);
+                    readPos = foundPos;
+                } else {
+                    // 次の数字読みが見つからない → 元の reading を返す
+                    return reading;
+                }
+            }
+        }
+    }
+
+    return result;
+}
+
 // --- Sudachi トークン → Furikana トークン変換 ---
 function convertSudachiTokens(morphemes) {
     const tokens = [];
     for (const m of morphemes) {
         const surface = m.surface;
-        const reading = katakanaToHiragana(m.reading_form);
+        // 数字の桁ごと読みを合成読みに補正してから、ひらがなに変換
+        const rawReading = m.reading_form;
+        const fixedReading = /[0-9０-９]{2,}/.test(surface) ? _fixNumberReading(surface, rawReading) : rawReading;
+        const reading = katakanaToHiragana(fixedReading);
         const pos = mapSudachiPos(m.poses?.[0]);
         tokens.push({
             surface: surface,
