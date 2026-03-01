@@ -22,9 +22,8 @@ function nativeLog(message, level) {
 
 nativeLog('Background script loaded. kuromoji=' + (typeof kuromoji !== 'undefined') +
           ', SudachiWasm=' + (typeof SudachiWasm !== 'undefined') +
-          ', isSudachiReady=' + (typeof isSudachiReady === 'function'));
-nativeLog('background.js: typeof browser=' + typeof browser +
-          ', sendNativeMessage=' + (typeof browser !== 'undefined' && browser.runtime && typeof browser.runtime.sendNativeMessage));
+          ', isSudachiReady=' + (typeof isSudachiReady === 'function') +
+          ', extHelper=' + (typeof _extHelperLoaded === 'function'));
 
 // --- kuromoji 遅延初期化 ---
 let kuromojiTokenizer = null;
@@ -209,8 +208,8 @@ try {
         // Sudachi 辞書ステータス問い合わせ（options.js から）
         if (request.action === 'getSudachiStatus') {
             sendResponse({
-                ready: isSudachiReady(),
-                dictMode: getSudachiDictMode()
+                ready: (typeof isSudachiReady === 'function' && isSudachiReady()),
+                dictMode: (typeof getSudachiDictMode === 'function' ? getSudachiDictMode() : null)
             });
             return false;
         }
@@ -274,6 +273,7 @@ try {
         if (dictType === 'sudachi') {
             // Sudachi WASM バッチ → native バッチフォールバック
             try {
+                if (typeof isSudachiReady !== 'function') throw new Error('sudachi-tokenizer.js not loaded');
                 nativeLog('Batch sudachi: isSudachiReady=' + isSudachiReady());
                 if (!isSudachiReady()) {
                     nativeLog('Batch sudachi: initializing...');
@@ -333,6 +333,7 @@ try {
     async function trySudachiTokenization(request) {
         if (request.action !== 'tokenize' || !request.text) return null;
         try {
+            if (typeof isSudachiReady !== 'function') throw new Error('sudachi-tokenizer.js not loaded');
             nativeLog('trySudachiTokenization: isSudachiReady=' + isSudachiReady());
             if (!isSudachiReady()) {
                 nativeLog('trySudachiTokenization: initializing...');
@@ -472,7 +473,7 @@ try {
                 initKuromoji().catch(err => {
                     console.warn('[Furikana] kuromoji preload failed:', err);
                 });
-            } else if (newDictType === 'sudachi' && !isSudachiReady()) {
+            } else if (newDictType === 'sudachi' && typeof isSudachiReady === 'function' && !isSudachiReady()) {
                 nativeLog('Dict changed to sudachi, preloading...');
                 initSudachiWithFallback().catch(err => {
                     nativeLog('Sudachi preload FAILED: ' + (err && err.message || err), 'error');
@@ -487,7 +488,7 @@ try {
                 kuromojiInitFailed = false;
                 console.log('[Furikana] kuromoji unloaded');
             }
-            if (newDictType !== 'sudachi') {
+            if (newDictType !== 'sudachi' && typeof unloadSudachi === 'function') {
                 unloadSudachi();
             }
         }

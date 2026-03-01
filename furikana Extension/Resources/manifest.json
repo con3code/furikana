@@ -15,7 +15,7 @@
     },
 
     "background": {
-        "scripts": ["kuromoji.js", "sudachi-bundle.js", "sudachi-tokenizer.js", "background.js"],
+        "scripts": ["kuromoji.js", "ext-helper.js", "sudachi-bundle.js", "background.js"],
         "persistent": false
     },
 
