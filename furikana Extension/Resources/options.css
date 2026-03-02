@@ -242,3 +242,45 @@ button {
     background-color: #d1d1d6;
 }
 
+/* アコーディオン */
+.accordion-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+.accordion-header h2 {
+    margin-bottom: 0;
+}
+
+.accordion-icon {
+    display: inline-block;
+    width: 0;
+    height: 0;
+    border-top: 5px solid transparent;
+    border-bottom: 5px solid transparent;
+    border-left: 7px solid #86868b;
+    transition: transform 0.2s;
+    flex-shrink: 0;
+}
+
+.accordion-header.open .accordion-icon {
+    transform: rotate(90deg);
+}
+.accordion-panel {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
+    opacity: 0;
+    margin-top: 0;
+}
+
+.accordion-panel.open {
+    max-height: 500px;
+    opacity: 1;
+    margin-top: 12px;
+}
+

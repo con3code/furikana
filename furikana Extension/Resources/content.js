@@ -705,11 +705,19 @@ async function loadSettings() {
         rubyLineHeight: 1.3,
         rubyMinHeight: 12,
         rubyBoxPadding: 0.15,
-        rubyBoxMargin: 0
+        rubyBoxMargin: 0,
+        userDictRules: null
     });
 
     settings = stored;
     applyRubyCSS();
+
+    // ユーザー辞書ルールを適用
+    if (stored.userDictRules && typeof ReadingRules !== 'undefined'
+        && typeof ReadingRules.setUserRules === 'function') {
+        ReadingRules.setUserRules(stored.userDictRules);
+    }
+
     console.log('[Furikana] Settings loaded: dictType=' + stored.dictType + ', autoEnable=' + stored.autoEnable);
 
     // 自動有効化
@@ -1431,6 +1439,17 @@ browser.storage.onChanged.addListener((changes, areaName) => {
         const newDict = changes.dictType.newValue;
         settings.dictType = newDict;
         console.log('[Furikana] Dictionary changed to:', newDict);
+        scheduleRebuild();
+    }
+
+    // ユーザー辞書ルール変更
+    if (changes.userDictRules) {
+        const rules = changes.userDictRules.newValue;
+        if (rules && typeof ReadingRules !== 'undefined' && typeof ReadingRules.setUserRules === 'function') {
+            ReadingRules.setUserRules(rules);
+        } else if (typeof ReadingRules !== 'undefined' && typeof ReadingRules.clearUserRules === 'function') {
+            ReadingRules.clearUserRules();
+        }
         scheduleRebuild();
     }
 });

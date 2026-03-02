@@ -282,6 +282,58 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         document.getElementById('save-settings').addEventListener('click', saveSettings);
         document.getElementById('reset-sliders').addEventListener('click', resetSliders);
+
+        // ユーザー辞書: アコーディオンヘッダークリックで開閉
+        const userDictToggle = document.getElementById('user-dict-toggle');
+        const userDictPanel = document.getElementById('user-dict-panel');
+        userDictToggle.addEventListener('click', () => {
+            const isOpen = userDictToggle.classList.toggle('open');
+            userDictPanel.classList.toggle('open', isOpen);
+        });
+
+        // ユーザー辞書: テキストエリア内でTabキーを押すとタブ文字を挿入
+        document.getElementById('user-dict').addEventListener('keydown', (e) => {
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                const ta = e.target;
+                const start = ta.selectionStart;
+                const end = ta.selectionEnd;
+                ta.value = ta.value.substring(0, start) + '\t' + ta.value.substring(end);
+                ta.selectionStart = ta.selectionEnd = start + 1;
+            }
+        });
+
+        // ユーザー辞書の読み込み
+        if (typeof browser !== 'undefined' && browser.runtime && browser.runtime.sendMessage) {
+            try {
+                const dictRes = await browser.runtime.sendMessage({ action: 'loadUserDict' });
+                if (dictRes && dictRes.success && dictRes.tsv) {
+                    document.getElementById('user-dict').value = dictRes.tsv;
+                    // データがあればアコーディオンを開いた状態にする
+                    userDictToggle.classList.add('open');
+                    userDictPanel.classList.add('open');
+                }
+            } catch (e) { /* ホストアプリ内ではスキップ */ }
+        }
+
+        // ユーザー辞書の保存
+        document.getElementById('save-user-dict').addEventListener('click', async () => {
+            const tsv = document.getElementById('user-dict').value;
+            const statusEl = document.getElementById('user-dict-status');
+            try {
+                const res = await browser.runtime.sendMessage({ action: 'updateUserDict', tsv: tsv });
+                if (res && res.success) {
+                    statusEl.textContent = res.ruleCount + ' 件のルールを保存しました';
+                    statusEl.style.color = '#34c759';
+                } else {
+                    statusEl.textContent = '保存に失敗しました';
+                    statusEl.style.color = '#ff3b30';
+                }
+            } catch (e) {
+                statusEl.textContent = '保存に失敗しました: ' + e.message;
+                statusEl.style.color = '#ff3b30';
+            }
+        });
     } catch (error) {
         console.error('Initialization failed:', error);
     }

@@ -586,13 +586,24 @@ const ReadingRules = (() => {
           context: { prevPattern: new RegExp('^(' + WAGO_DAY_NUM + ')$') } },
     ];
 
+    // ユーザー辞書ルール（TSV由来、組み込みより高優先度）
+    let userSequenceRules = [];
+    let userSurfaceRules = [];
+
     // B: ソートキャッシュ — 毎回ソートせず事前に1回だけソート
-    const sortedSequenceRules = [...sequenceRules].sort((a, b) => b.priority - a.priority);
-    const sortedSurfaceRules = [...surfaceRules].sort((a, b) => b.priority - a.priority);
+    let sortedSequenceRules = [...sequenceRules].sort((a, b) => b.priority - a.priority);
+    let sortedSurfaceRules = [...surfaceRules].sort((a, b) => b.priority - a.priority);
     const sortedRegexRules = [...regexRules].sort((a, b) => b.priority - a.priority);
     // C: 数字不要ルールを分離（数字を含まないsurfaceはdigitルールをスキップ）
     const regexOtherRules = sortedRegexRules.filter(r => !/\d/.test(r.pattern.source));
     const HAS_DIGIT = /[0-9０-９]/;
+
+    function rebuildSortCaches() {
+        sortedSequenceRules = userSequenceRules.concat(sequenceRules)
+            .sort((a, b) => b.priority - a.priority);
+        sortedSurfaceRules = userSurfaceRules.concat(surfaceRules)
+            .sort((a, b) => b.priority - a.priority);
+    }
 
     function contextMatches(ctx, tokens, index) {
         if (!ctx) return true;
@@ -700,6 +711,18 @@ const ReadingRules = (() => {
                 console.log(`[Furikana] ReadingRule merged: ${tokens.length} → ${after.length} tokens`);
             }
             return after;
+        },
+        setUserRules(rules) {
+            userSequenceRules = rules.sequenceRules || [];
+            userSurfaceRules = rules.surfaceRules || [];
+            rebuildSortCaches();
+            console.log(`[Furikana] User rules set: ${userSurfaceRules.length} surface, ${userSequenceRules.length} sequence`);
+        },
+        clearUserRules() {
+            userSequenceRules = [];
+            userSurfaceRules = [];
+            rebuildSortCaches();
+            console.log('[Furikana] User rules cleared');
         }
     };
 })();

@@ -11,9 +11,9 @@
         "message": "Furigana Settings",
         "description": "Options page title"
     },
-    "options_save": {
-        "message": "Save",
-        "description": "Save settings button"
+    "options_close": {
+        "message": "Close",
+        "description": "Close settings button"
     },
     "options_dict_heading": {
         "message": "Dictionary",

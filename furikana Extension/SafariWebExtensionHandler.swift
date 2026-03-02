@@ -161,6 +161,42 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 }
                 responseData["success"] = true
 
+            case "loadUserDict":
+                let fm = FileManager.default
+                guard let containerURL = fm.containerURL(
+                    forSecurityApplicationGroupIdentifier: "group.con3.furikana"
+                ) else {
+                    responseData["success"] = true
+                    responseData["tsv"] = ""
+                    break
+                }
+                let dictURL = containerURL.appendingPathComponent("user_dict.tsv")
+                if let content = try? String(contentsOf: dictURL, encoding: .utf8) {
+                    responseData["success"] = true
+                    responseData["tsv"] = content
+                } else {
+                    responseData["success"] = true
+                    responseData["tsv"] = ""
+                }
+
+            case "saveUserDict":
+                guard let tsv = messageDict["tsv"] as? String,
+                      let containerURL = FileManager.default.containerURL(
+                          forSecurityApplicationGroupIdentifier: "group.con3.furikana"
+                      ) else {
+                    responseData["success"] = false
+                    responseData["error"] = "Invalid params"
+                    break
+                }
+                let saveDictURL = containerURL.appendingPathComponent("user_dict.tsv")
+                do {
+                    try tsv.write(to: saveDictURL, atomically: true, encoding: .utf8)
+                    responseData["success"] = true
+                } catch {
+                    responseData["success"] = false
+                    responseData["error"] = error.localizedDescription
+                }
+
             case "loadSettings":
                 // App Group UserDefaults から設定を読み込み
                 let defaults = UserDefaults(suiteName: "group.con3.furikana")

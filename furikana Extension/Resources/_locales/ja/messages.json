@@ -11,9 +11,9 @@
         "message": "ふりがな設定",
         "description": "Options page title"
     },
-    "options_save": {
-        "message": "設定保存",
-        "description": "Save settings button"
+    "options_close": {
+        "message": "閉じる",
+        "description": "Close settings button"
     },
     "options_dict_heading": {
         "message": "辞書設定",

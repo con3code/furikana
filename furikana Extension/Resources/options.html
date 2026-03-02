@@ -10,46 +10,8 @@
     <div class="container">
         <div class="header">
             <h1 data-i18n="options_title">ふりがな設定</h1>
-            <button id="save-settings" class="btn-primary" data-i18n="options_save">設定保存</button>
+            <button id="save-settings" class="btn-primary" data-i18n="options_close">閉じる</button>
         </div>
-
-        <!-- 辞書選択セクション -->
-        <section class="section">
-            <h2 data-i18n="options_dict_heading">辞書設定</h2>
-            <p class="description" data-i18n="options_dict_description">
-                解析に使用する辞書を選択してください。
-            </p>
-
-            <div class="dictionary-list">
-                <!-- システム解析 -->
-                <label class="dictionary-item dict-radio-label">
-                    <input type="radio" name="dictType" value="system">
-                    <div class="dict-info">
-                        <h3 data-i18n="options_dict_system">システム辞書</h3>
-                        <p class="dict-description" data-i18n="options_dict_system_desc">システム標準の日本語辞書（軽量・高速）</p>
-                    </div>
-                </label>
-
-                <!-- IPA辞書 -->
-                <label class="dictionary-item dict-radio-label">
-                    <input type="radio" name="dictType" value="ipadic">
-                    <div class="dict-info">
-                        <h3 data-i18n="options_dict_ipadic">IPA辞書</h3>
-                        <p class="dict-description" data-i18n="options_dict_ipadic_desc">充実した日本語辞書（初回読み込みに数秒かかります）</p>
-                    </div>
-                </label>
-
-                <!-- Sudachi辞書 -->
-                <label class="dictionary-item dict-radio-label">
-                    <input type="radio" name="dictType" value="sudachi">
-                    <div class="dict-info">
-                        <h3 data-i18n="options_dict_sudachi">Sudachi辞書</h3>
-                        <p id="sudachi-dict-mode" class="dict-size"></p>
-                        <p class="dict-description" data-i18n="options_dict_sudachi_desc">豊富な語数の日本語辞書（初回読み込みに数秒かかります）</p>
-                    </div>
-                </label>
-            </div>
-        </section>
 
         <!-- 表示設定セクション -->
         <section class="section">
@@ -105,7 +67,7 @@
                 <p><ruby>東京<rt>とうきょう</rt></ruby>タワーに<ruby>行<rt>い</rt></ruby>きました。</p>
             </div>
 
-            <hr style="border: none; border-top: 1px solid #e5e5e7; margin: 16px 0;">
+            <hr style="border: none; border-top: 1px solid #e5e5e7; margin: 32px 0;">
 
             <div class="setting-item">
                 <label>
@@ -126,6 +88,60 @@
                     <input type="checkbox" id="reading-rules">
                     <span data-i18n="options_reading_rules">読み補正ルールを適用（ルールベース）</span>
                 </label>
+            </div>
+        </section>
+
+        <!-- 辞書選択セクション -->
+        <section class="section">
+            <h2 data-i18n="options_dict_heading">辞書設定</h2>
+            <p class="description" data-i18n="options_dict_description">
+                解析に使用する辞書を選択してください。
+            </p>
+
+            <div class="dictionary-list">
+                <!-- システム解析 -->
+                <label class="dictionary-item dict-radio-label">
+                    <input type="radio" name="dictType" value="system">
+                    <div class="dict-info">
+                        <h3 data-i18n="options_dict_system">システム辞書</h3>
+                        <p class="dict-description" data-i18n="options_dict_system_desc">システム標準の日本語辞書（軽量・高速）</p>
+                    </div>
+                </label>
+
+                <!-- IPA辞書 -->
+                <label class="dictionary-item dict-radio-label">
+                    <input type="radio" name="dictType" value="ipadic">
+                    <div class="dict-info">
+                        <h3 data-i18n="options_dict_ipadic">IPA辞書</h3>
+                        <p class="dict-description" data-i18n="options_dict_ipadic_desc">充実した日本語辞書（初回読み込みに数秒かかります）</p>
+                    </div>
+                </label>
+
+                <!-- Sudachi辞書 -->
+                <label class="dictionary-item dict-radio-label">
+                    <input type="radio" name="dictType" value="sudachi">
+                    <div class="dict-info">
+                        <h3 data-i18n="options_dict_sudachi">Sudachi辞書</h3>
+                        <p id="sudachi-dict-mode" class="dict-size"></p>
+                        <p class="dict-description" data-i18n="options_dict_sudachi_desc">豊富な語数の日本語辞書（初回読み込みに数秒かかります）</p>
+                    </div>
+                </label>
+            </div>
+        </section>
+
+        <!-- ユーザー辞書セクション -->
+        <section class="section">
+            <div class="accordion-header" id="user-dict-toggle">
+                <span class="accordion-icon"></span>
+                <h2>ユーザー辞書</h2>
+            </div>
+            <div id="user-dict-panel" class="accordion-panel">
+                <p class="description">表層形とよみをタブ区切りで1行1語入力してください。組み込みルールより優先されます。</p>
+                <textarea id="user-dict" rows="8" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:14px;padding:8px;border:1px solid #ccc;border-radius:6px;resize:vertical;" placeholder="# 表層形&#9;読み&#10;令和&#9;れいわ&#10;五月雨&#9;さみだれ"></textarea>
+                <div style="display:flex;align-items:center;gap:12px;margin-top:8px;">
+                    <button id="save-user-dict" class="btn-primary" style="flex-shrink:0;">辞書を保存</button>
+                    <span id="user-dict-status" style="font-size:13px;color:#666;"></span>
+                </div>
             </div>
         </section>
 
