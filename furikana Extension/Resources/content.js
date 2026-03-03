@@ -838,9 +838,7 @@ function splitParenReadingTokens(tokens) {
         // 括弧前の読み = 注釈テキスト、括弧後の読み = 残り
         let beforeReading = annotationHira;
         let afterReading = '';
-        if (after && reading.startsWith(annotationHira)) {
-            afterReading = reading.substring(annotationHira.length);
-        } else if (after && reading.length > annotationHira.length) {
+        if (after && reading.length > annotationHira.length) {
             afterReading = reading.substring(annotationHira.length);
         }
 
@@ -1283,6 +1281,12 @@ function applyTokensToNode(textNode, text, tokens, dictSource, gen) {
         if (gen !== furikanaGeneration) {
             console.log('[Furikana] Discarding stale result (generation changed)');
             return false;
+        }
+
+        // ルビが1つも生成されなかった場合、DOM置換せず元ノードを残す
+        // （置換すると新TextNodeが processedNodes に未登録で再検出され無限ループになる）
+        if (rubyCount === 0) {
+            return true;
         }
 
         // 元のテキストノードを置き換え

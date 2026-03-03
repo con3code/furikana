@@ -70,6 +70,8 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
             sendDictStatus(.idle)
         case "getDictStatus":
             sendDictStatus(DictionaryManager.shared.currentStatus())
+        case "runtimeMessage":
+            handleRuntimeMessage(body)
         default:
             break
         }
@@ -241,6 +243,52 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
         }
     }
 
+    // MARK: - Runtime Message ブリッジ
+
+    private func handleRuntimeMessage(_ body: [String: Any]) {
+        guard let callbackId = body["callbackId"] as? String,
+              let message = body["message"] as? [String: Any],
+              let msgAction = message["action"] as? String else {
+            NSLog("[FuriFuri] runtimeMessage: missing callbackId or message")
+            return
+        }
+
+        let fm = FileManager.default
+        let containerURL = fm.containerURL(forSecurityApplicationGroupIdentifier: appGroupId)
+
+        switch msgAction {
+        case "loadUserDict":
+            var tsv = ""
+            if let url = containerURL?.appendingPathComponent("user_dict.tsv"),
+               let content = try? String(contentsOf: url, encoding: .utf8) {
+                tsv = content
+            }
+            sendCallback(callbackId: callbackId, data: ["success": true, "tsv": tsv])
+
+        case "updateUserDict":
+            let tsv = (message["tsv"] as? String) ?? ""
+            guard let url = containerURL?.appendingPathComponent("user_dict.tsv") else {
+                sendCallback(callbackId: callbackId, data: ["success": false, "error": "AppGroup unavailable"])
+                return
+            }
+            do {
+                try tsv.write(to: url, atomically: true, encoding: .utf8)
+                // TSVの有効行数をカウント（非空・非コメント・タブ区切り）
+                let ruleCount = tsv.components(separatedBy: "\n").filter { line in
+                    let trimmed = line.trimmingCharacters(in: .whitespaces)
+                    return !trimmed.isEmpty && !trimmed.hasPrefix("#") && trimmed.contains("\t")
+                }.count
+                sendCallback(callbackId: callbackId, data: ["success": true, "ruleCount": ruleCount])
+            } catch {
+                sendCallback(callbackId: callbackId, data: ["success": false, "error": error.localizedDescription])
+            }
+
+        default:
+            // syncAppGroup, forceSyncToAppGroup, getSudachiStatus 等はホストアプリでは不要
+            sendCallback(callbackId: callbackId, data: [:])
+        }
+    }
+
     // MARK: - 注入スクリプト
 
     /// browser.storage.local ポリフィル
@@ -283,6 +331,19 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
                             });
                         });
                     }
+                }
+            },
+            runtime: {
+                sendMessage: function(msg) {
+                    return new Promise(function(resolve) {
+                        var id = String(++_id);
+                        _cbs[id] = resolve;
+                        window.webkit.messageHandlers.controller.postMessage({
+                            action: 'runtimeMessage',
+                            callbackId: id,
+                            message: msg
+                        });
+                    });
                 }
             }
         };

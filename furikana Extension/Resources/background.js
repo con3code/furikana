@@ -235,14 +235,17 @@ try {
         if (request.action === 'updateUserDict') {
             var tsv = request.tsv || '';
             var rules = parseUserDictTSV(tsv);
-            // storageに保存 → 各タブのcontent.jsに自動通知
-            browser.storage.local.set({ userDictRules: rules });
+            // storageに保存 → 各タブのcontent.jsに自動通知（完了を待ってから応答）
+            browser.storage.local.set({ userDictRules: rules }).then(function() {
+                sendResponse({ success: true, ruleCount: rules.surfaceRules.length });
+            }).catch(function(e) {
+                sendResponse({ success: false, error: e.message });
+            });
             // AppGroupにもTSV原文を永続化
             browser.runtime.sendNativeMessage('con3.furikana', {
                 action: 'saveUserDict', tsv: tsv
             }).catch(function() {});
-            sendResponse({ success: true, ruleCount: rules.surfaceRules.length });
-            return false;
+            return true;
         }
 
         // ユーザー辞書の読み込み（options.js から）
@@ -250,11 +253,7 @@ try {
             browser.runtime.sendNativeMessage('con3.furikana', {
                 action: 'loadUserDict'
             }).then(function(response) {
-                if (response && response.success) {
-                    sendResponse({ success: true, tsv: response.tsv || '' });
-                } else {
-                    sendResponse({ success: true, tsv: '' });
-                }
+                sendResponse({ success: true, tsv: (response && response.success && response.tsv) || '' });
             }).catch(function() {
                 sendResponse({ success: true, tsv: '' });
             });
@@ -547,19 +546,26 @@ try {
     syncFromAppGroup();
 
     // --- ユーザー辞書の起動時ロード ---
-    (function loadUserDictFromAppGroup() {
+    function loadUserDictFromAppGroup() {
         browser.runtime.sendNativeMessage('con3.furikana', {
             action: 'loadUserDict'
         }).then(function(response) {
             if (response && response.success && response.tsv) {
                 var rules = parseUserDictTSV(response.tsv);
-                browser.storage.local.set({ userDictRules: rules });
-                nativeLog('User dict loaded: ' + rules.surfaceRules.length + ' rules');
+                // 現在のストレージ値と比較し、変化がある場合のみ書き込む
+                // （background.js再起動時に同じルールで onChanged → 全ルビ削除を防止）
+                browser.storage.local.get({ userDictRules: null }).then(function(stored) {
+                    if (JSON.stringify(stored.userDictRules) !== JSON.stringify(rules)) {
+                        browser.storage.local.set({ userDictRules: rules });
+                        nativeLog('User dict loaded: ' + rules.surfaceRules.length + ' rules');
+                    }
+                });
             }
         }).catch(function(e) {
             console.warn('[Furikana] User dict load failed:', e);
         });
-    })();
+    }
+    loadUserDictFromAppGroup();
 
     // --- 設定変更リスナー ---
     let syncTimer = null;

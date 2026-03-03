@@ -1,5 +1,60 @@
 // 設定画面のメインスクリプト
 
+// --- ユーザー辞書 TSV パーサ（background.js と同一ロジック） ---
+function parseUserDictTSV(tsvText) {
+    var surfaceRules = [];
+    var sequenceRules = [];
+
+    function allPartitions(str) {
+        if (str.length <= 1) return [];
+        if (str.length > 6) {
+            return [Array.from(str)];
+        }
+        var results = [];
+        var n = str.length - 1;
+        for (var mask = 1; mask < (1 << n); mask++) {
+            var parts = [];
+            var start = 0;
+            for (var i = 0; i < n; i++) {
+                if (mask & (1 << i)) {
+                    parts.push(str.substring(start, i + 1));
+                    start = i + 1;
+                }
+            }
+            parts.push(str.substring(start));
+            results.push(parts);
+        }
+        return results;
+    }
+
+    var lines = tsvText.split('\n');
+    for (var li = 0; li < lines.length; li++) {
+        var line = lines[li].trim();
+        if (!line || line.charAt(0) === '#') continue;
+        var tab = line.indexOf('\t');
+        if (tab === -1) continue;
+        var surface = line.substring(0, tab).trim();
+        var reading = line.substring(tab + 1).trim();
+        if (!surface || !reading) continue;
+
+        var id = 'user-' + li;
+        surfaceRules.push({ id: id + '-s', priority: 200, surface: surface, reading: reading });
+
+        if (surface.length > 1) {
+            var partitions = allPartitions(surface);
+            for (var pi = 0; pi < partitions.length; pi++) {
+                sequenceRules.push({
+                    id: id + '-q' + pi,
+                    priority: 210,
+                    surfaces: partitions[pi],
+                    reading: reading
+                });
+            }
+        }
+    }
+    return { surfaceRules: surfaceRules, sequenceRules: sequenceRules };
+}
+
 const DEFAULTS = {
     readingType: 'hiragana',
     unitType: 'long',
@@ -321,14 +376,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             const tsv = document.getElementById('user-dict').value;
             const statusEl = document.getElementById('user-dict-status');
             try {
-                const res = await browser.runtime.sendMessage({ action: 'updateUserDict', tsv: tsv });
-                if (res && res.success) {
-                    statusEl.textContent = res.ruleCount + ' 件のルールを保存しました';
-                    statusEl.style.color = '#34c759';
-                } else {
-                    statusEl.textContent = '保存に失敗しました';
-                    statusEl.style.color = '#ff3b30';
+                // TSVをパースしてルールを生成し、storage.local に直接保存
+                // （ホストアプリ: polyfill経由でUserDefaults、Safari拡張: 拡張storage）
+                const rules = parseUserDictTSV(tsv);
+                await browser.storage.local.set({ userDictRules: rules });
+
+                // ファイル永続化（background.js / ViewController 経由でAppGroupに保存）
+                if (typeof browser.runtime !== 'undefined' && browser.runtime.sendMessage) {
+                    browser.runtime.sendMessage({ action: 'updateUserDict', tsv: tsv }).catch(function() {});
                 }
+
+                statusEl.textContent = rules.surfaceRules.length + ' 件のルールを保存しました';
+                statusEl.style.color = '#34c759';
             } catch (e) {
                 statusEl.textContent = '保存に失敗しました: ' + e.message;
                 statusEl.style.color = '#ff3b30';
