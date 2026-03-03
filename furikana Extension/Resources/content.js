@@ -810,6 +810,76 @@ function containsKanji(text) {
     return /[\u4E00-\u9FAF]/.test(text);
 }
 
+// 括弧付き読み注釈を含むトークンを分割
+// 例: { surface: "黎明（れいめい）期", reading: "れいめいき" }
+//   → [{ surface: "黎明", reading: "れいめい" },
+//      { surface: "（れいめい）", reading: "（れいめい）" },
+//      { surface: "期", reading: "き" }]
+// Sudachi等のトークナイザが括弧読み注釈をsurfaceに含めて返す場合に対応
+const PAREN_READING_RE = /^(.+?)([（(])([\u3040-\u309F\u30A0-\u30FF]+)([）)])(.*)$/;
+function splitParenReadingTokens(tokens) {
+    const result = [];
+    for (const token of tokens) {
+        const m = token.surface.match(PAREN_READING_RE);
+        if (!m) {
+            result.push(token);
+            continue;
+        }
+        const before = m[1];       // "黎明"
+        const openP = m[2];        // "（"
+        const annotation = m[3];   // "れいめい"
+        const closeP = m[4];       // "）"
+        const after = m[5];        // "期" 等
+
+        // 括弧内のひらがな表記（カタカナ注釈も対応）
+        const annotationHira = katakanaToHiragana(annotation);
+        const reading = token.reading || '';
+
+        // 括弧前の読み = 注釈テキスト、括弧後の読み = 残り
+        let beforeReading = annotationHira;
+        let afterReading = '';
+        if (after && reading.startsWith(annotationHira)) {
+            afterReading = reading.substring(annotationHira.length);
+        } else if (after && reading.length > annotationHira.length) {
+            afterReading = reading.substring(annotationHira.length);
+        }
+
+        let pos = token.range[0];
+
+        // 括弧前（漢字部分）
+        if (before) {
+            result.push({
+                surface: before,
+                reading: beforeReading,
+                pos: token.pos,
+                range: [pos, pos + before.length]
+            });
+            pos += before.length;
+        }
+
+        // 括弧付き注釈（そのまま表示、ルビ不要）
+        const parenFull = openP + annotation + closeP;
+        result.push({
+            surface: parenFull,
+            reading: parenFull,
+            pos: 'Symbol',
+            range: [pos, pos + parenFull.length]
+        });
+        pos += parenFull.length;
+
+        // 括弧後
+        if (after) {
+            result.push({
+                surface: after,
+                reading: afterReading || after,
+                pos: token.pos,
+                range: [pos, pos + after.length]
+            });
+        }
+    }
+    return result;
+}
+
 // テキストノードが画面内に表示されているか判定
 function isTextNodeVisible(textNode) {
     const parent = textNode.parentElement;
@@ -1127,6 +1197,9 @@ function applyTokensToNode(textNode, text, tokens, dictSource, gen) {
     if (!tokens) return false;
 
     try {
+        // 括弧付き読み注釈を含むトークンを分割（ReadingRules適用前に実行）
+        tokens = splitParenReadingTokens(tokens);
+
         // ReadingRules を両辞書共通で適用（JS側に一元化）
         if (settings.readingRules && typeof ReadingRules !== 'undefined') {
             tokens = ReadingRules.apply(tokens);
