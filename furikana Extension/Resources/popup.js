@@ -85,8 +85,11 @@ function updateStatus(message, type = 'info') {
     }
 }
 
-// 設定画面を開く
-function openSettings() {
+// 設定画面を開く（App Group同期を先行させてから開く）
+async function openSettings() {
+    try {
+        await browser.runtime.sendMessage({ action: 'syncAppGroup' });
+    } catch (e) { /* 同期失敗時はそのまま開く */ }
     browser.runtime.openOptionsPage();
 }
 
@@ -127,6 +130,18 @@ async function onRubySizeInput() {
     }, 150);
 }
 
+// ルビ行間隔をストレージに保存
+let rubyGapSaveTimer = null;
+async function onRubyGapInput() {
+    const val = parseInt(document.getElementById('popup-ruby-gap').value, 10);
+    document.getElementById('popup-ruby-gap-value').textContent = val;
+
+    if (rubyGapSaveTimer) clearTimeout(rubyGapSaveTimer);
+    rubyGapSaveTimer = setTimeout(async () => {
+        await browser.storage.local.set({ rubyGap: val });
+    }, 150);
+}
+
 // 逆転モードチェックボックス変更時
 async function onReverseRubyChange() {
     const checked = document.getElementById('popup-reverse-ruby').checked;
@@ -149,9 +164,11 @@ async function loadPopupSettings() {
     try {
         await browser.runtime.sendMessage({ action: 'syncAppGroup' });
     } catch (e) { /* 同期失敗時はスキップ */ }
-    const s = await browser.storage.local.get({ rubySize: 50, autoEnable: false, reverseRuby: false });
+    const s = await browser.storage.local.get({ rubySize: 50, rubyGap: 1, autoEnable: false, reverseRuby: false });
     document.getElementById('popup-ruby-size').value = s.rubySize;
     document.getElementById('popup-ruby-size-value').textContent = s.rubySize;
+    document.getElementById('popup-ruby-gap').value = s.rubyGap;
+    document.getElementById('popup-ruby-gap-value').textContent = s.rubyGap;
     document.getElementById('popup-reverse-ruby').checked = s.reverseRuby;
     document.getElementById('popup-auto-enable').checked = s.autoEnable;
 }
@@ -166,6 +183,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ルビサイズスライダー
     document.getElementById('popup-ruby-size').addEventListener('input', onRubySizeInput);
+
+    // ルビ行間隔スライダー
+    document.getElementById('popup-ruby-gap').addEventListener('input', onRubyGapInput);
 
     // 逆転モードチェックボックス
     document.getElementById('popup-reverse-ruby').addEventListener('change', onReverseRubyChange);
