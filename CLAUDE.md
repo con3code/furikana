@@ -63,13 +63,13 @@ Host app and extension share data via AppGroup (`group.con3.furikana`). `ViewCon
   - `splitParenReadingTokens(tokens)` — Sudachi等が括弧付き読み注釈（"黎明（れいめい）期"）をsurfaceに含めて返す場合に分割処理。ReadingRules適用前に実行。
   - `RequestQueue` — Rate-limited native messaging (max 3 concurrent, 75ms interval). Distinguishes connection errors (background.js stopped) from tokenization errors — connection errors trigger 2s retry instead of cooldown.
   - `isConnectionError()` — Detects background.js unavailability ("Could not establish connection", "Receiving end does not exist" etc.).
-  - `VisibleTextProcessor` — Viewport-aware batch processing (12 nodes/batch). `processQueue` trims leading whitespace, sends batch via `sendBatchTokenize`, adjusts token ranges, applies results via `applyTokensToNode`.
+  - `VisibleTextProcessor` — Viewport-aware batch processing (12 nodes/batch). `processQueue` trims leading whitespace, sends batch via `sendBatchTokenize`, adjusts token ranges, applies results via `applyTokensToNode`. MutationObserver（childList/characterData）でSPA遷移・動的コンテンツを検知して再スキャン。自前のruby挿入レコードはバッチ適用直後の `takeRecords()` で破棄（自己トリガー防止）。非表示タブではスキャンを保留し visibilitychange で再開。
   - `applyTokensToNode()` — `rubyCount === 0` の場合はDOM置換を行わない（テキストノードをそのまま保持）。
   - `rebuildFurigana()` — Common rebuild logic (removeFurigana → reset queue → restart processor).
   - `scheduleRebuild()` — Defers rebuild on hidden tabs; executes on `visibilitychange` when tab becomes visible.
   - `furikanaGeneration` counter — Discards stale in-flight results after settings change or re-render.
   - `storage.onChanged` listener — Handles live updates for CSS sliders, readingType, unitType, readingRules, dictType, reverseRuby, userDictRules.
-  - `getTextNodes()` — Excludes SCRIPT, STYLE, RUBY, RT, RB tags and any text inside existing `<ruby>` ancestors (prevents double-ruby on sites using `<rb>` tags).
+  - `getTextNodes()` — Excludes SCRIPT, STYLE, RUBY, RT, RB, TEXTAREA/INPUT/SELECT/OPTION tags, contenteditable (`isContentEditable`), and any text inside existing `<ruby>` ancestors (prevents double-ruby on sites using `<rb>` tags). ruby祖先・広告セレクタの `closest()` 判定は `ancestorExclusionCache`（WeakMap）でキャッシュ。
 - **`furikana Extension/Resources/background.js`** — Message router with dict routing: kuromoji (ipadic) / Sudachi WASM (sudachi) / native Swift (system) → simpleTokenize fallback. Handles both `tokenize` (single) and `tokenizeBatch` (batch). Handles kuromoji/Sudachi lifecycle. ユーザー辞書の `updateUserDict` / `loadUserDict` メッセージも処理。`parseUserDictTSV()` でTSVをルールに変換し `browser.storage.local.set({ userDictRules })` で全タブに通知。
 - **`furikana Extension/Resources/ext-helper.js`** — Sudachi WASM アダプター（background scripts の2番目にロード）。Sudachi 初期化・トークン化・辞書チャンク読み込み（1MBチャンク）・数字読み補正を担当。旧 `sudachi-tokenizer.js`（未ロードの重複ファイル）は削除済み — Sudachi 関連の修正は必ずこのファイルに入れる。
 - **`furikana Extension/Resources/sudachi-bundle.js`** — Sudachi WASM 本体。`npm run build:sudachi` で生成（esbuild）、`scripts/patch-sudachi-bundle.js` でパッチ適用。`sudachi-dict/` に辞書ファイル。
