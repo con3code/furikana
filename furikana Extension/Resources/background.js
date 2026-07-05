@@ -303,7 +303,7 @@ try {
         if (dictType === 'sudachi') {
             // Sudachi WASM バッチ → native バッチフォールバック
             try {
-                if (typeof isSudachiReady !== 'function') throw new Error('sudachi-tokenizer.js not loaded');
+                if (typeof isSudachiReady !== 'function') throw new Error('ext-helper.js (Sudachi adapter) not loaded');
                 nativeLog('Batch sudachi: isSudachiReady=' + isSudachiReady());
                 if (!isSudachiReady()) {
                     nativeLog('Batch sudachi: initializing...');
@@ -363,7 +363,7 @@ try {
     async function trySudachiTokenization(request) {
         if (request.action !== 'tokenize' || !request.text) return null;
         try {
-            if (typeof isSudachiReady !== 'function') throw new Error('sudachi-tokenizer.js not loaded');
+            if (typeof isSudachiReady !== 'function') throw new Error('ext-helper.js (Sudachi adapter) not loaded');
             nativeLog('trySudachiTokenization: isSudachiReady=' + isSudachiReady());
             if (!isSudachiReady()) {
                 nativeLog('trySudachiTokenization: initializing...');

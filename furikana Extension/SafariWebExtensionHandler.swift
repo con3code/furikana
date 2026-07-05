@@ -98,7 +98,10 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                         responseData["error"] = "Invalid filename"
                         break
                     }
-                    let chunkSize = (messageDict["chunkSize"] as? Int) ?? (16 * 1024 * 1024)
+                    // 拡張ハンドラのメモリ制限（約6MB）を超えないよう 1MB 上限
+                    // （16MBチャンクは base64 化で約21MBの文字列を生成し jetsam で強制終了される）
+                    let requestedChunkSize = (messageDict["chunkSize"] as? Int) ?? (1024 * 1024)
+                    let chunkSize = min(max(requestedChunkSize, 64 * 1024), 1024 * 1024)
                     let offset = (messageDict["offset"] as? Int) ?? 0
 
                     if let bundleURL = Bundle.main.resourceURL {
@@ -115,7 +118,7 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                             defer { fh.closeFile() }
                             let totalSize = Int(fh.seekToEndOfFile())
                             fh.seek(toFileOffset: UInt64(offset))
-                            let chunk = fh.readData(ofLength: min(chunkSize, totalSize - offset))
+                            let chunk = fh.readData(ofLength: max(0, min(chunkSize, totalSize - offset)))
                             os_log(.default, "loadDictFile: %{public}@ offset=%d len=%d total=%d", filename, offset, chunk.count, totalSize)
                             responseData["data"] = chunk.base64EncodedString()
                             responseData["totalSize"] = totalSize
@@ -245,9 +248,10 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 responseData["success"] = true
 
             case "read_dictionary_chunk":
-                // AppGroup 内辞書のチャンク読み（16MB default — 往復回数を減らしiOSによる強制終了を回避）
+                // AppGroup 内辞書のチャンク読み（1MB 上限 — 大チャンクは base64 化でメモリ制限を超え強制終了される）
                 let offset = (messageDict["offset"] as? Int) ?? 0
-                let chunkSize = (messageDict["chunkSize"] as? Int) ?? (16 * 1024 * 1024)
+                let requestedChunkSize = (messageDict["chunkSize"] as? Int) ?? (1024 * 1024)
+                let chunkSize = min(max(requestedChunkSize, 64 * 1024), 1024 * 1024)
                 let dictType = (messageDict["dictType"] as? String) ?? "full"
                 let dictName = dictType == "core" ? "sudachi_core.dic" : "sudachi_full.dic"
                 NSLog("[FurikanaExt] read_dictionary_chunk: %@ offset=%d chunkSize=%d", dictName, offset, chunkSize)
@@ -265,7 +269,7 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 defer { fh.closeFile() }
                 let totalSize = Int(fh.seekToEndOfFile())
                 fh.seek(toFileOffset: UInt64(offset))
-                let data = fh.readData(ofLength: min(chunkSize, totalSize - offset))
+                let data = fh.readData(ofLength: max(0, min(chunkSize, totalSize - offset)))
                 responseData["data"] = data.base64EncodedString()
                 responseData["totalSize"] = totalSize
                 responseData["success"] = true
@@ -460,17 +464,16 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                         let nsRange = NSRange(location: cfReading.utf16Start, length: cfReading.utf16End - cfReading.utf16Start)
                         if let range = Range(nsRange, in: text) {
                             let surface = String(text[range])
-                            let startOffset = text.distance(from: text.startIndex, to: range.lowerBound)
-                            let endOffset = text.distance(from: text.startIndex, to: range.upperBound)
 
                             // 漢字を含む場合のみ長単位化を適用
                             if surface.range(of: "\\p{Han}", options: .regularExpression) != nil {
                                 let pos = mergedPos(for: rawTokens[i..<j])
+                                // range は JS 側の文字列インデックスに合わせて UTF-16 オフセットで返す
                                 tokens.append(TokenInfo(
                                     surface: surface,
                                     reading: cfReading.reading,
                                     pos: pos,
-                                    range: [startOffset, endOffset]
+                                    range: [cfReading.utf16Start, cfReading.utf16End]
                                 ))
                                 i = j
                                 cfIndex += 1
@@ -538,7 +541,7 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                             surface: combinedSurface,
                             reading: r,
                             pos: pos,
-                            range: [start, end]
+                            range: [rawTokens[i].utf16Start, rawTokens[j - 1].utf16End]
                         ))
                         i = j
                         continue
@@ -558,7 +561,7 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 surface: rawToken.surface,
                 reading: reading,
                 pos: rawToken.pos,
-                range: [rawToken.startOffset, rawToken.endOffset]
+                range: [rawToken.utf16Start, rawToken.utf16End]
             ))
             i += 1
         }

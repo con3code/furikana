@@ -31,7 +31,7 @@ content.js → sendBatchTokenize (batch of texts, leading whitespace trimmed)
   → browser.runtime.sendMessage({ action: 'tokenizeBatch' })
     → background.js (handleTokenizeBatchRequest)
       ├─ dictType='ipadic' → kuromoji.js (IPA辞書, sync per text)
-      ├─ dictType='sudachi' → sudachi-tokenizer.js (Sudachi WASM)
+      ├─ dictType='sudachi' → ext-helper.js (Sudachi WASM adapter)
       └─ dictType='system' → sendNativeMessage → Swift (tokenizeBatch)
                                ├─ Phase 1: NLTagger (tokens + POS)
                                ├─ Phase 2: CFStringTokenizer (readings)
@@ -71,8 +71,8 @@ Host app and extension share data via AppGroup (`group.con3.furikana`). `ViewCon
   - `storage.onChanged` listener — Handles live updates for CSS sliders, readingType, unitType, readingRules, dictType, reverseRuby, userDictRules.
   - `getTextNodes()` — Excludes SCRIPT, STYLE, RUBY, RT, RB tags and any text inside existing `<ruby>` ancestors (prevents double-ruby on sites using `<rb>` tags).
 - **`furikana Extension/Resources/background.js`** — Message router with dict routing: kuromoji (ipadic) / Sudachi WASM (sudachi) / native Swift (system) → simpleTokenize fallback. Handles both `tokenize` (single) and `tokenizeBatch` (batch). Handles kuromoji/Sudachi lifecycle. ユーザー辞書の `updateUserDict` / `loadUserDict` メッセージも処理。`parseUserDictTSV()` でTSVをルールに変換し `browser.storage.local.set({ userDictRules })` で全タブに通知。
-- **`furikana Extension/Resources/ext-helper.js`** — background.js が読み込む補助スクリプト（background scripts の2番目にロード）。
-- **`furikana Extension/Resources/sudachi-tokenizer.js`** / **`sudachi-bundle.js`** — Sudachi WASM トークナイザー。`sudachi-bundle.js` は `npm run build:sudachi` で生成（esbuild）、`scripts/patch-sudachi-bundle.js` でパッチ適用。`sudachi-dict/` に辞書ファイル。
+- **`furikana Extension/Resources/ext-helper.js`** — Sudachi WASM アダプター（background scripts の2番目にロード）。Sudachi 初期化・トークン化・辞書チャンク読み込み（1MBチャンク）・数字読み補正を担当。旧 `sudachi-tokenizer.js`（未ロードの重複ファイル）は削除済み — Sudachi 関連の修正は必ずこのファイルに入れる。
+- **`furikana Extension/Resources/sudachi-bundle.js`** — Sudachi WASM 本体。`npm run build:sudachi` で生成（esbuild）、`scripts/patch-sudachi-bundle.js` でパッチ適用。`sudachi-dict/` に辞書ファイル。
 - **`furikana Extension/Resources/kuromoji.js`** + **`dict/`** — Bundled IPA dictionary tokenizer (~17MB). Loaded as background script alongside background.js.
 - **`furikana Extension/Resources/popup.js`** / **`popup.html`** — Toolbar popup (toggle, ruby size slider, auto-enable, reverse ruby toggle).
 - **`furikana Extension/Resources/options.js`** / **`options.html`** / **`options.css`** — Settings page (dict type, reading type, unit type, ruby styling sliders, auto-enable, reverse ruby, reading rules toggle). Includes live preview of ruby styling.

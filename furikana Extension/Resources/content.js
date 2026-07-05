@@ -377,6 +377,8 @@ function applyRubyCSS() {
       font-size: ${rtSize}% !important;
       margin-block-start: ${rubyGap}px !important;
       pointer-events: none;
+      -webkit-user-select: none !important;
+      user-select: none !important;
     }` : `
     .furikana-ruby {
       vertical-align: baseline !important;
@@ -388,6 +390,8 @@ function applyRubyCSS() {
       font-size: var(--furikana-ruby-size) !important;
       margin-block-end: ${rubyGap}px !important;
       pointer-events: none;
+      -webkit-user-select: none !important;
+      user-select: none !important;
     }`;
 
     style.textContent = `
@@ -772,9 +776,14 @@ function getTextNodes(element) {
                 }
                 const parent = node.parentElement;
                 if (parent) {
-                    // スクリプト/スタイル/RUBY/RT/RB タグ内は除外
+                    // スクリプト/スタイル/RUBY/RT/RB/フォーム系タグ内は除外
                     const tag = parent.tagName;
-                    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'RUBY' || tag === 'RT' || tag === 'RB') {
+                    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'RUBY' || tag === 'RT' || tag === 'RB' ||
+                        tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT' || tag === 'OPTION') {
+                        return NodeFilter.FILTER_REJECT;
+                    }
+                    // 編集可能領域内は除外（ruby挿入で入力内容・カーソル・IMEが壊れる）
+                    if (parent.isContentEditable) {
                         return NodeFilter.FILTER_REJECT;
                     }
                     // 祖先に既存の ruby がある場合も除外（rb の孫テキスト等）
