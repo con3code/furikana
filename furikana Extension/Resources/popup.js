@@ -2,6 +2,36 @@
 
 let isEnabled = false;
 
+// i18n メッセージ取得（未定義キーや i18n 非対応環境ではフォールバックを返す）
+function t(key, fallback, substitutions) {
+    if (typeof browser !== 'undefined' && browser.i18n && browser.i18n.getMessage) {
+        const msg = browser.i18n.getMessage(key, substitutions);
+        if (msg) return msg;
+    }
+    return fallback;
+}
+
+// data-i18n / data-i18n-template 属性のテキストを置換（options.js と同方式）
+function applyI18n() {
+    if (typeof browser === 'undefined' || !browser.i18n || !browser.i18n.getMessage) return;
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+        const key = el.getAttribute('data-i18n');
+        const msg = browser.i18n.getMessage(key);
+        if (msg) el.textContent = msg;
+    });
+
+    // スライダーラベル用（値表示の span を保持したまま置換）
+    document.querySelectorAll('[data-i18n-template]').forEach(el => {
+        const key = el.getAttribute('data-i18n-template');
+        const msg = browser.i18n.getMessage(key, ['__PLACEHOLDER__']);
+        if (!msg) return;
+        const span = el.querySelector('span');
+        if (!span) return;
+        el.innerHTML = msg.replace('__PLACEHOLDER__', span.outerHTML);
+    });
+}
+
 // 現在のタブを取得
 async function getCurrentTab() {
     const tabs = await browser.tabs.query({ active: true, currentWindow: true });
@@ -13,11 +43,11 @@ async function toggleFurigana() {
     const tab = await getCurrentTab();
 
     if (!tab || !tab.id) {
-        updateStatus('タブが見つかりません', 'error');
+        updateStatus(t('popup_status_no_tab', 'タブが見つかりません'), 'error');
         return;
     }
 
-    updateStatus('処理中...', 'processing');
+    updateStatus(t('popup_status_processing', '処理中...'), 'processing');
 
     try {
         // content.jsにメッセージを送信
@@ -33,13 +63,18 @@ async function toggleFurigana() {
                 tabId: tab.id,
                 path: isEnabled ? 'images/toolbar-icon_on.svg' : 'images/toolbar-icon_off.svg'
             }).catch(() => {});
-            updateStatus(isEnabled ? 'ふりがなを表示しました' : 'ふりがなを非表示にしました', 'success');
+            updateStatus(
+                isEnabled
+                    ? t('popup_status_shown', 'ふりがなを表示しました')
+                    : t('popup_status_hidden', 'ふりがなを非表示にしました'),
+                'success'
+            );
         } else {
-            updateStatus('処理に失敗しました', 'error');
+            updateStatus(t('popup_status_failed', '処理に失敗しました'), 'error');
         }
     } catch (error) {
         console.error('Toggle failed:', error);
-        updateStatus('エラーが発生しました', 'error');
+        updateStatus(t('popup_status_error', 'エラーが発生しました'), 'error');
     }
 }
 
@@ -48,19 +83,27 @@ function updateUI() {
     const toggleButton = document.getElementById('toggle-furigana');
     const toggleText = document.getElementById('toggle-text');
 
+    toggleButton.setAttribute('aria-pressed', String(isEnabled));
     if (isEnabled) {
         toggleButton.classList.add('active');
-        toggleText.textContent = 'ふりがなを非表示';
+        toggleText.textContent = t('popup_toggle_hide', 'ふりがなを非表示');
     } else {
         toggleButton.classList.remove('active');
-        toggleText.textContent = 'ふりがなを表示';
+        toggleText.textContent = t('popup_toggle_show', 'ふりがなを表示');
     }
 }
 
 // ステータステキストの更新
+let statusResetTimer = null;
 function updateStatus(message, type = 'info') {
     const statusText = document.getElementById('status-text');
     statusText.textContent = message;
+
+    // 前回のリセットタイマーを解除（連続操作時に古いタイマーが表示を上書きするのを防ぐ）
+    if (statusResetTimer) {
+        clearTimeout(statusResetTimer);
+        statusResetTimer = null;
+    }
 
     // 色を変更
     switch (type) {
@@ -74,13 +117,14 @@ function updateStatus(message, type = 'info') {
             statusText.style.color = '#ff9500';
             break;
         default:
-            statusText.style.color = '#6e6e73';
+            statusText.style.color = '';
     }
 
     // 成功/エラーメッセージは2秒後に消す
     if (type === 'success' || type === 'error') {
-        setTimeout(() => {
-            updateStatus('準備完了', 'info');
+        statusResetTimer = setTimeout(() => {
+            statusResetTimer = null;
+            updateStatus(t('popup_status_ready', '準備完了'), 'info');
         }, 2000);
     }
 }
@@ -126,6 +170,7 @@ async function onRubySizeInput() {
 
     if (rubySizeSaveTimer) clearTimeout(rubySizeSaveTimer);
     rubySizeSaveTimer = setTimeout(async () => {
+        rubySizeSaveTimer = null;
         await browser.storage.local.set({ rubySize: val });
     }, 150);
 }
@@ -138,8 +183,27 @@ async function onRubyGapInput() {
 
     if (rubyGapSaveTimer) clearTimeout(rubyGapSaveTimer);
     rubyGapSaveTimer = setTimeout(async () => {
+        rubyGapSaveTimer = null;
         await browser.storage.local.set({ rubyGap: val });
     }, 150);
+}
+
+// デバウンス中の保存を即時確定する
+// （スライダー操作直後にポップアップが閉じると setTimeout が発火せず値が失われるため、
+//   change イベント＝ドラッグ確定時と pagehide で必ずフラッシュする）
+function flushPendingSaves() {
+    if (rubySizeSaveTimer) {
+        clearTimeout(rubySizeSaveTimer);
+        rubySizeSaveTimer = null;
+        const val = parseInt(document.getElementById('popup-ruby-size').value, 10);
+        browser.storage.local.set({ rubySize: val }).catch(() => {});
+    }
+    if (rubyGapSaveTimer) {
+        clearTimeout(rubyGapSaveTimer);
+        rubyGapSaveTimer = null;
+        const val = parseInt(document.getElementById('popup-ruby-gap').value, 10);
+        browser.storage.local.set({ rubyGap: val }).catch(() => {});
+    }
 }
 
 // 逆転モードチェックボックス変更時
@@ -175,6 +239,9 @@ async function loadPopupSettings() {
 
 // イベントリスナーの設定
 document.addEventListener('DOMContentLoaded', async () => {
+    // i18n 適用（ロケールに応じたテキスト置換）
+    applyI18n();
+
     // トグルボタン
     document.getElementById('toggle-furigana').addEventListener('click', toggleFurigana);
 
@@ -182,10 +249,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('open-settings').addEventListener('click', openSettings);
 
     // ルビサイズスライダー
-    document.getElementById('popup-ruby-size').addEventListener('input', onRubySizeInput);
+    const rubySizeSlider = document.getElementById('popup-ruby-size');
+    rubySizeSlider.addEventListener('input', onRubySizeInput);
+    rubySizeSlider.addEventListener('change', flushPendingSaves);
 
     // ルビ行間隔スライダー
-    document.getElementById('popup-ruby-gap').addEventListener('input', onRubyGapInput);
+    const rubyGapSlider = document.getElementById('popup-ruby-gap');
+    rubyGapSlider.addEventListener('input', onRubyGapInput);
+    rubyGapSlider.addEventListener('change', flushPendingSaves);
+
+    // ポップアップが閉じる直前に未保存の値をフラッシュ
+    window.addEventListener('pagehide', flushPendingSaves);
 
     // 逆転モードチェックボックス
     document.getElementById('popup-reverse-ruby').addEventListener('change', onReverseRubyChange);

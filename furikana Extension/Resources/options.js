@@ -386,10 +386,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                     browser.runtime.sendMessage({ action: 'updateUserDict', tsv: tsv }).catch(function() {});
                 }
 
-                statusEl.textContent = rules.surfaceRules.length + ' 件のルールを保存しました';
+                const count = String(rules.surfaceRules.length);
+                const hasI18n = typeof browser !== 'undefined' && browser.i18n && browser.i18n.getMessage;
+                statusEl.textContent = hasI18n
+                    ? (browser.i18n.getMessage('options_user_dict_saved', [count]) || count + ' 件のルールを保存しました')
+                    : count + ' 件のルールを保存しました';
                 statusEl.style.color = '#34c759';
             } catch (e) {
-                statusEl.textContent = '保存に失敗しました: ' + e.message;
+                const hasI18n = typeof browser !== 'undefined' && browser.i18n && browser.i18n.getMessage;
+                statusEl.textContent = hasI18n
+                    ? (browser.i18n.getMessage('options_user_dict_save_failed', [e.message]) || '保存に失敗しました: ' + e.message)
+                    : '保存に失敗しました: ' + e.message;
                 statusEl.style.color = '#ff3b30';
             }
         });

@@ -108,5 +108,85 @@
     "options_reading_rules": {
         "message": "Apply reading correction rules (rule-based)",
         "description": "Reading rules checkbox"
+    },
+    "options_user_dict_heading": {
+        "message": "User Dictionary",
+        "description": "User dictionary section heading"
+    },
+    "options_user_dict_desc": {
+        "message": "Enter one word per line: surface form and reading separated by a tab. Takes precedence over built-in rules.",
+        "description": "User dictionary description"
+    },
+    "options_user_dict_save": {
+        "message": "Save Dictionary",
+        "description": "Save user dictionary button"
+    },
+    "options_user_dict_saved": {
+        "message": "$COUNT$ rules saved",
+        "description": "User dictionary save success message",
+        "placeholders": { "count": { "content": "$1" } }
+    },
+    "options_user_dict_save_failed": {
+        "message": "Save failed: $ERROR$",
+        "description": "User dictionary save failure message",
+        "placeholders": { "error": { "content": "$1" } }
+    },
+    "popup_toggle_show": {
+        "message": "Show Furigana",
+        "description": "Popup toggle button (currently off)"
+    },
+    "popup_toggle_hide": {
+        "message": "Hide Furigana",
+        "description": "Popup toggle button (currently on)"
+    },
+    "popup_status_ready": {
+        "message": "Ready",
+        "description": "Popup status: idle"
+    },
+    "popup_status_processing": {
+        "message": "Processing...",
+        "description": "Popup status: processing"
+    },
+    "popup_status_no_tab": {
+        "message": "No active tab found",
+        "description": "Popup status: no tab"
+    },
+    "popup_status_shown": {
+        "message": "Furigana shown",
+        "description": "Popup status: furigana enabled"
+    },
+    "popup_status_hidden": {
+        "message": "Furigana hidden",
+        "description": "Popup status: furigana disabled"
+    },
+    "popup_status_failed": {
+        "message": "Operation failed",
+        "description": "Popup status: failure"
+    },
+    "popup_status_error": {
+        "message": "An error occurred",
+        "description": "Popup status: error"
+    },
+    "popup_ruby_size": {
+        "message": "Ruby size: $VALUE$%",
+        "description": "Popup ruby size slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "popup_ruby_gap": {
+        "message": "Ruby gap: $VALUE$px",
+        "description": "Popup ruby gap slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "popup_auto_enable": {
+        "message": "Auto furigana",
+        "description": "Popup auto-enable checkbox"
+    },
+    "popup_reverse_ruby": {
+        "message": "Hiragana main",
+        "description": "Popup reverse ruby checkbox"
+    },
+    "popup_open_settings": {
+        "message": "Open Settings",
+        "description": "Popup open settings button"
     }
 }

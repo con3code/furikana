@@ -74,8 +74,9 @@ Host app and extension share data via AppGroup (`group.con3.furikana`). `ViewCon
 - **`furikana Extension/Resources/ext-helper.js`** — Sudachi WASM アダプター（background scripts の2番目にロード）。Sudachi 初期化・トークン化・辞書チャンク読み込み（1MBチャンク）・数字読み補正を担当。旧 `sudachi-tokenizer.js`（未ロードの重複ファイル）は削除済み — Sudachi 関連の修正は必ずこのファイルに入れる。
 - **`furikana Extension/Resources/sudachi-bundle.js`** — Sudachi WASM 本体。`npm run build:sudachi` で生成（esbuild）、`scripts/patch-sudachi-bundle.js` でパッチ適用。`sudachi-dict/` に辞書ファイル。
 - **`furikana Extension/Resources/kuromoji.js`** + **`dict/`** — Bundled IPA dictionary tokenizer (~17MB). Loaded as background script alongside background.js.
-- **`furikana Extension/Resources/popup.js`** / **`popup.html`** — Toolbar popup (toggle, ruby size slider, auto-enable, reverse ruby toggle).
-- **`furikana Extension/Resources/options.js`** / **`options.html`** / **`options.css`** — Settings page (dict type, reading type, unit type, ruby styling sliders, auto-enable, reverse ruby, reading rules toggle). Includes live preview of ruby styling.
+- **`furikana Extension/Resources/popup.js`** / **`popup.html`** — Toolbar popup (toggle, ruby size slider, auto-enable, reverse ruby toggle). i18n対応（`data-i18n`/`data-i18n-template` + `t()` ヘルパー、`_locales` の `popup_*` キー）。スライダーは `change`/`pagehide` でデバウンス中の保存をフラッシュ。
+- **`furikana Extension/Resources/options.js`** / **`options.html`** / **`options.css`** — Settings page (dict type, reading type, unit type, ruby styling sliders, auto-enable, reverse ruby, reading rules toggle, user dictionary). Includes live preview of ruby styling. ホストアプリのWKWebViewでも表示される（browser.i18n 非対応環境ではHTMLの日本語がフォールバック）。
+- **popup.css / options.css** — `@media (prefers-color-scheme: dark)` でダークモード対応（`color-scheme: light dark` 宣言済み）。
 - **`furikana/ViewController.swift`** — Host app WKWebView controller. Injects `browser.storage.local` polyfill and back-button script. Bridges settings between web UI and UserDefaults via AppGroup.
 
 ### Ruby Display Modes
