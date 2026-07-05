@@ -191,6 +191,7 @@ try {
                 try {
                     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
                     const allSettings = await browser.storage.local.get(null);
+                    delete allSettings.userDictRules;
                     await browser.runtime.sendNativeMessage('con3.furikana', {
                         action: 'syncSettings',
                         settings: allSettings
@@ -602,10 +603,13 @@ try {
         }
 
         // App Group に同期（デバウンス 300ms）
+        // userDictRules は除外（AppGroupに user_dict.tsv 原文が別途保存されており冗長。
+        // allPartitions展開後のデータが巨大になりUserDefaultsを圧迫する）
         if (syncTimer) clearTimeout(syncTimer);
         syncTimer = setTimeout(async () => {
             try {
                 const allSettings = await browser.storage.local.get(null);
+                delete allSettings.userDictRules;
                 await browser.runtime.sendNativeMessage('con3.furikana', {
                     action: 'syncSettings',
                     settings: allSettings
