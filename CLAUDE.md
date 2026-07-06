@@ -6,17 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Furikana is an iOS Safari Web Extension that adds furigana (reading annotations) to Japanese kanji on web pages.
 
-**製品名は「るびポン」(RubiPon)**（旧称 FuriFuri — App Store で名前衝突のため改名）。ユーザー向け表示名（CFBundleDisplayName、_locales の extension_name、LaunchScreen、Main.html）のみ るびポン に変更済み。内部識別子は据え置き: bundle ID `con3.furikana`・AppGroup `group.con3.furikana`・ターゲット名/スキーム名 `FuriFuri`・`FuriFuri Extension.appex`（変更すると証明書・AppGroupデータ・native messaging が壊れるため、今後も変更しないこと）。 Two tokenization backends are available: native Swift (NLTagger + CFStringTokenizer) and kuromoji.js (IPA dictionary). Readings are rendered as HTML `<ruby>` tags with okurigana separation.
+**製品名は「るびポン」(RubiPon)**（旧称 FuriFuri — App Store で名前衝突のため改名）。表示名（CFBundleDisplayName、_locales の extension_name、LaunchScreen、Main.html）とターゲット/スキーム/プロジェクト名・生成物名（`RubiPon.app` / `RubiPon Extension.appex`）は RubiPon に変更済み。**bundle ID `con3.furikana` と AppGroup `group.con3.furikana` は据え置き** — 変更すると証明書・AppGroupデータ・native messaging が壊れるため、今後も変更しないこと。 Two tokenization backends are available: native Swift (NLTagger + CFStringTokenizer) and kuromoji.js (IPA dictionary). Readings are rendered as HTML `<ruby>` tags with okurigana separation.
 
 Two display modes: **通常モード** (Safari native ruby — rt above kanji) and **ひらがなメインモード** (`reverseRuby` — small kanji above, full-size hiragana below via `display: block` + `position: absolute` on rt).
 
 ## Build
 
 ```bash
-xcodebuild -scheme FuriFuri build -destination 'generic/platform=iOS'
+xcodebuild -scheme RubiPon build -destination 'generic/platform=iOS'
 ```
 
-Two targets: `FuriFuri` (iOS host app) and `FuriFuri Extension` (Safari web extension). Building the scheme builds both. No test suite or linter is configured. Xcode project is `FuriFuri.xcodeproj`.
+Two targets: `RubiPon` (iOS host app) and `RubiPon Extension` (Safari web extension). Building the scheme builds both. No test suite or linter is configured. Xcode project is `RubiPon.xcodeproj`.
 
 `furikana Extension/Resources/` uses PBXFileSystemSynchronizedRootGroup — files added to this directory are automatically picked up by Xcode without pbxproj edits.
 

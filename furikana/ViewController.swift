@@ -85,7 +85,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
             return
         }
 
-        let appexURL = plugInsURL.appendingPathComponent("FuriFuri Extension.appex")
+        let appexURL = plugInsURL.appendingPathComponent("RubiPon Extension.appex")
         guard let extensionBundle = Bundle(url: appexURL) else {
             NSLog("[RubiPon] Extension bundle not found at: %@", appexURL.path)
             return
