@@ -156,6 +156,15 @@ function _errToString(e) {
     return String(e);
 }
 
+// 辞書ロード進捗（popup が getSudachiStatus 経由で参照する。書き込みはこのファイル内のみ）
+var sudachiLoadProgress = { loading: false, offset: 0, totalSize: 0 };
+
+function getSudachiLoadProgress() { return sudachiLoadProgress; }
+
+function _setSudachiProgress(loading, offset, totalSize) {
+    sudachiLoadProgress = { loading: loading, offset: offset, totalSize: totalSize };
+}
+
 function _loadDictFromNative(filename) {
     var CHUNK_SIZE = 16 * 1024 * 1024;
     var offset = 0;
@@ -174,6 +183,7 @@ function _loadDictFromNative(filename) {
             for (var i = 0; i < binStr.length; i++) { bytes[i] = binStr.charCodeAt(i); }
             chunks.push(bytes);
             offset += bytes.length;
+            _setSudachiProgress(true, offset, totalSize);
             _sudachiNativeLog('Dict chunk: ' + offset + '/' + totalSize);
             if (offset >= totalSize) {
                 var result = new Uint8Array(totalSize);
@@ -307,6 +317,7 @@ function _loadDownloadedDict(dictType, totalSize) {
             for (var i = 0; i < binStr.length; i++) { bytes[i] = binStr.charCodeAt(i); }
             chunks.push(bytes);
             offset += bytes.length;
+            _setSudachiProgress(true, offset, totalSize);
             if (offset >= totalSize) {
                 var result = new Uint8Array(totalSize);
                 var pos = 0;
@@ -341,8 +352,10 @@ function initSudachiWithFallback() {
         return initSudachiEmbedded();
     }).then(function() {
         sudachiFallbackPromise = null;
+        _setSudachiProgress(false, 0, 0);
     }, function(e) {
         sudachiFallbackPromise = null;
+        _setSudachiProgress(false, 0, 0);
         throw e;
     });
     return sudachiFallbackPromise;

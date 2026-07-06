@@ -167,6 +167,17 @@
         "message": "An error occurred",
         "description": "Popup status: error"
     },
+    "popup_status_dict_loading": {
+        "message": "Loading dictionary… $PCT$%",
+        "description": "Popup status: Sudachi dictionary loading progress",
+        "placeholders": {
+            "pct": { "content": "$1" }
+        }
+    },
+    "popup_status_dict_loaded": {
+        "message": "Dictionary loaded",
+        "description": "Popup status: Sudachi dictionary loaded"
+    },
     "popup_ruby_size": {
         "message": "Ruby size: $VALUE$%",
         "description": "Popup ruby size slider label",

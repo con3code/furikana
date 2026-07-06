@@ -167,6 +167,17 @@
         "message": "エラーが発生しました",
         "description": "Popup status: error"
     },
+    "popup_status_dict_loading": {
+        "message": "辞書読み込み中… $PCT$%",
+        "description": "Popup status: Sudachi dictionary loading progress",
+        "placeholders": {
+            "pct": { "content": "$1" }
+        }
+    },
+    "popup_status_dict_loaded": {
+        "message": "辞書の読み込みが完了しました",
+        "description": "Popup status: Sudachi dictionary loaded"
+    },
     "popup_ruby_size": {
         "message": "ルビサイズ: $VALUE$%",
         "description": "Popup ruby size slider label",

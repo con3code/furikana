@@ -206,11 +206,12 @@ try {
             return true;
         }
 
-        // Sudachi 辞書ステータス問い合わせ（options.js から）
+        // Sudachi 辞書ステータス問い合わせ（options.js / popup.js から）
         if (request.action === 'getSudachiStatus') {
             sendResponse({
                 ready: (typeof isSudachiReady === 'function' && isSudachiReady()),
-                dictMode: (typeof getSudachiDictMode === 'function' ? getSudachiDictMode() : null)
+                dictMode: (typeof getSudachiDictMode === 'function' ? getSudachiDictMode() : null),
+                loadProgress: (typeof getSudachiLoadProgress === 'function' ? getSudachiLoadProgress() : null)
             });
             return false;
         }

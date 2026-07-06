@@ -129,6 +129,56 @@ function updateStatus(message, type = 'info') {
     }
 }
 
+// Sudachi 辞書ロード進捗（popup 表示中のみ 500ms 間隔で background にポーリング。
+// storage 書き込みやブロードキャストを使わないため、content.js や AppGroup 同期に影響しない）
+let dictProgressTimer = null;
+let dictProgressShown = false;
+
+async function pollSudachiProgress() {
+    try {
+        const res = await browser.runtime.sendMessage({ action: 'getSudachiStatus' });
+        const p = res && res.loadProgress;
+        if (p && p.loading && p.totalSize > 0) {
+            dictProgressShown = true;
+            // トグル操作直後の成功/エラー表示（2秒）中は上書きしない
+            if (!statusResetTimer) {
+                const pct = Math.floor(p.offset * 100 / p.totalSize);
+                updateStatus(
+                    t('popup_status_dict_loading', `辞書読み込み中… ${pct}%`, [String(pct)]),
+                    'processing'
+                );
+            }
+        } else if (dictProgressShown) {
+            // ロード中表示 → 完了/失敗に遷移
+            dictProgressShown = false;
+            if (res && res.ready) {
+                updateStatus(t('popup_status_dict_loaded', '辞書の読み込みが完了しました'), 'success');
+            } else if (!statusResetTimer) {
+                updateStatus(t('popup_status_ready', '準備完了'), 'info');
+            }
+        }
+        // ready になったら以降ロードは発生しないためポーリング停止
+        if (res && res.ready && !dictProgressShown) {
+            stopSudachiProgressPolling();
+        }
+    } catch (_) {
+        // background 未起動などの応答なしは無視（次のポーリングで再試行）
+    }
+}
+
+function startSudachiProgressPolling() {
+    if (dictProgressTimer) return;
+    pollSudachiProgress();
+    dictProgressTimer = setInterval(pollSudachiProgress, 500);
+}
+
+function stopSudachiProgressPolling() {
+    if (dictProgressTimer) {
+        clearInterval(dictProgressTimer);
+        dictProgressTimer = null;
+    }
+}
+
 // 設定画面を開く（App Group同期を先行させてから開く）
 async function openSettings() {
     try {
@@ -272,4 +322,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // 現在の状態を取得してUIを更新
     await fetchCurrentStatus();
+
+    // Sudachi 辞書選択時のみ、辞書ロード進捗の表示を開始
+    try {
+        const { dictType } = await browser.storage.local.get({ dictType: 'system' });
+        if (dictType === 'sudachi') startSudachiProgressPolling();
+    } catch (_) { /* 取得失敗時は進捗表示なしで続行 */ }
 });
+
+// ポップアップが閉じるときにポーリングを停止
+window.addEventListener('pagehide', stopSudachiProgressPolling);
