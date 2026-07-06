@@ -256,7 +256,7 @@
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "furikana Extension/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = FuriFuri;
+				INFOPLIST_KEY_CFBundleDisplayName = "るびポン";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -290,7 +290,7 @@
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "furikana Extension/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = FuriFuri;
+				INFOPLIST_KEY_CFBundleDisplayName = "るびポン";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -326,7 +326,7 @@
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = furikana/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = FuriFuri;
+				INFOPLIST_KEY_CFBundleDisplayName = "るびポン";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -368,7 +368,7 @@
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = furikana/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = FuriFuri;
+				INFOPLIST_KEY_CFBundleDisplayName = "るびポン";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;

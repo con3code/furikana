@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Furikana is an iOS Safari Web Extension that adds furigana (reading annotations) to Japanese kanji on web pages. Two tokenization backends are available: native Swift (NLTagger + CFStringTokenizer) and kuromoji.js (IPA dictionary). Readings are rendered as HTML `<ruby>` tags with okurigana separation.
+Furikana is an iOS Safari Web Extension that adds furigana (reading annotations) to Japanese kanji on web pages.
+
+**製品名は「るびポン」(RubiPon)**（旧称 FuriFuri — App Store で名前衝突のため改名）。ユーザー向け表示名（CFBundleDisplayName、_locales の extension_name、LaunchScreen、Main.html）のみ るびポン に変更済み。内部識別子は据え置き: bundle ID `con3.furikana`・AppGroup `group.con3.furikana`・ターゲット名/スキーム名 `FuriFuri`・`FuriFuri Extension.appex`（変更すると証明書・AppGroupデータ・native messaging が壊れるため、今後も変更しないこと）。 Two tokenization backends are available: native Swift (NLTagger + CFStringTokenizer) and kuromoji.js (IPA dictionary). Readings are rendered as HTML `<ruby>` tags with okurigana separation.
 
 Two display modes: **通常モード** (Safari native ruby — rt above kanji) and **ひらがなメインモード** (`reverseRuby` — small kanji above, full-size hiragana below via `display: block` + `position: absolute` on rt).
 

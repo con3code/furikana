@@ -34,15 +34,15 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        NSLog("[FuriFuri] Message received: %@", String(describing: message.body))
+        NSLog("[RubiPon] Message received: %@", String(describing: message.body))
 
         guard let body = message.body as? [String: Any],
               let action = body["action"] as? String else {
-            NSLog("[FuriFuri] Failed to parse message body")
+            NSLog("[RubiPon] Failed to parse message body")
             return
         }
 
-        NSLog("[FuriFuri] Action: %@", action)
+        NSLog("[RubiPon] Action: %@", action)
 
         switch action {
         case "openOptions":
@@ -81,13 +81,13 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
 
     private func loadOptionsPage() {
         guard let plugInsURL = Bundle.main.builtInPlugInsURL else {
-            NSLog("[FuriFuri] builtInPlugInsURL not found")
+            NSLog("[RubiPon] builtInPlugInsURL not found")
             return
         }
 
         let appexURL = plugInsURL.appendingPathComponent("FuriFuri Extension.appex")
         guard let extensionBundle = Bundle(url: appexURL) else {
-            NSLog("[FuriFuri] Extension bundle not found at: %@", appexURL.path)
+            NSLog("[RubiPon] Extension bundle not found at: %@", appexURL.path)
             return
         }
 
@@ -102,10 +102,10 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
             optionsURL = url
             resourceURL = extensionBundle.bundleURL
         } else {
-            NSLog("[FuriFuri] options.html not found in extension bundle. Bundle path: %@", extensionBundle.bundlePath)
+            NSLog("[RubiPon] options.html not found in extension bundle. Bundle path: %@", extensionBundle.bundlePath)
             return
         }
-        NSLog("[FuriFuri] Loading options from: %@", optionsURL.path)
+        NSLog("[RubiPon] Loading options from: %@", optionsURL.path)
 
         // UserScript を注入するため、新しい WKWebViewConfiguration で userScripts をリセット
         let ucc = self.webView.configuration.userContentController
@@ -136,7 +136,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
         ucc.removeAllUserScripts()
 
         guard let licensesURL = Bundle.main.url(forResource: "licenses", withExtension: "html") else {
-            NSLog("[FuriFuri] licenses.html not found")
+            NSLog("[RubiPon] licenses.html not found")
             return
         }
 
@@ -183,15 +183,15 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
 
     private func handleStorageGet(_ body: [String: Any]) {
         guard let callbackId = body["callbackId"] as? String else {
-            NSLog("[FuriFuri] storageGet: missing callbackId")
+            NSLog("[RubiPon] storageGet: missing callbackId")
             return
         }
 
         let defaults = body["defaults"] as? [String: Any] ?? [:]
         let sd = sharedDefaults
-        NSLog("[FuriFuri] storageGet: sharedDefaults is %@", sd != nil ? "valid" : "NIL")
+        NSLog("[RubiPon] storageGet: sharedDefaults is %@", sd != nil ? "valid" : "NIL")
         let stored = sd?.dictionary(forKey: settingsKey) ?? [:]
-        NSLog("[FuriFuri] storageGet: stored keys = %@, defaults keys = %@",
+        NSLog("[RubiPon] storageGet: stored keys = %@, defaults keys = %@",
               stored.keys.sorted().description, defaults.keys.sorted().description)
 
         // defaults に stored をマージ（stored が優先）
@@ -200,20 +200,20 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
             merged[key] = value
         }
 
-        NSLog("[FuriFuri] storageGet: returning %d keys", merged.count)
+        NSLog("[RubiPon] storageGet: returning %d keys", merged.count)
         sendCallback(callbackId: callbackId, data: merged)
     }
 
     private func handleStorageSet(_ body: [String: Any]) {
         guard let callbackId = body["callbackId"] as? String,
               let data = body["data"] as? [String: Any] else {
-            NSLog("[FuriFuri] storageSet: missing callbackId or data")
+            NSLog("[RubiPon] storageSet: missing callbackId or data")
             return
         }
 
         let sd = sharedDefaults
-        NSLog("[FuriFuri] storageSet: sharedDefaults is %@", sd != nil ? "valid" : "NIL")
-        NSLog("[FuriFuri] storageSet: saving keys = %@", data.keys.sorted().description)
+        NSLog("[RubiPon] storageSet: sharedDefaults is %@", sd != nil ? "valid" : "NIL")
+        NSLog("[RubiPon] storageSet: saving keys = %@", data.keys.sorted().description)
 
         // 既存の設定にマージ
         var stored = sd?.dictionary(forKey: settingsKey) ?? [:]
@@ -222,14 +222,14 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
         }
         sd?.set(stored, forKey: settingsKey)
 
-        NSLog("[FuriFuri] storageSet: total stored keys = %d", stored.count)
+        NSLog("[RubiPon] storageSet: total stored keys = %d", stored.count)
         sendCallback(callbackId: callbackId, data: [:])
     }
 
     private func sendCallback(callbackId: String, data: [String: Any]) {
         guard let jsonData = try? JSONSerialization.data(withJSONObject: data),
               let jsonString = String(data: jsonData, encoding: .utf8) else {
-            NSLog("[FuriFuri] Failed to serialize callback data")
+            NSLog("[RubiPon] Failed to serialize callback data")
             return
         }
 
@@ -238,7 +238,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
         let js = "window._storageResolve('\(escapedId)', \(jsonString))"
         self.webView.evaluateJavaScript(js) { _, error in
             if let error = error {
-                NSLog("[FuriFuri] evaluateJavaScript error: %@", error.localizedDescription)
+                NSLog("[RubiPon] evaluateJavaScript error: %@", error.localizedDescription)
             }
         }
     }
@@ -249,7 +249,7 @@ class ViewController: UIViewController, WKNavigationDelegate, WKScriptMessageHan
         guard let callbackId = body["callbackId"] as? String,
               let message = body["message"] as? [String: Any],
               let msgAction = message["action"] as? String else {
-            NSLog("[FuriFuri] runtimeMessage: missing callbackId or message")
+            NSLog("[RubiPon] runtimeMessage: missing callbackId or message")
             return
         }
 

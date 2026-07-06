@@ -21,9 +21,9 @@
                             <stackView opaque="NO" contentMode="scaleToFill" axis="vertical" alignment="center" spacing="16" translatesAutoresizingMaskIntoConstraints="NO" id="stk-01-abc">
                                 <rect key="frame" x="126.00000000000001" y="318" width="141.33333333333337" height="216.33333333333337"/>
                                 <subviews>
-                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="ふりふり" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-01-abc">
+                                    <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="るびポン" textAlignment="center" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="lbl-01-abc">
                                         <rect key="frame" x="14.333333333333336" y="0.0" width="112.33333333333331" height="36"/>
-                                        <accessibility key="accessibilityConfiguration" label="FuriFuri"/>
+                                        <accessibility key="accessibilityConfiguration" label="るびポン"/>
                                         <fontDescription key="fontDescription" type="system" weight="black" pointSize="30"/>
                                         <nil key="highlightedColor"/>
                                     </label>
