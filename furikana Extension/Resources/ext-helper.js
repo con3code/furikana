@@ -156,17 +156,14 @@ function _errToString(e) {
     return String(e);
 }
 
-// ネイティブハンドラのメモリ制限（約6MB）を超えないよう 1MB チャンクで読む
-// （大チャンクは Swift 側の base64 化でメモリを圧迫し jetsam で強制終了される）
-var _DICT_CHUNK_SIZE = 1024 * 1024;
-
 function _loadDictFromNative(filename) {
+    var CHUNK_SIZE = 16 * 1024 * 1024;
     var offset = 0;
     var totalSize = 0;
     var chunks = [];
     function loadNext() {
         return browser.runtime.sendNativeMessage('con3.furikana', {
-            action: 'loadDictFile', filename: filename, offset: offset, chunkSize: _DICT_CHUNK_SIZE
+            action: 'loadDictFile', filename: filename, offset: offset, chunkSize: CHUNK_SIZE
         }).then(function(response) {
             if (!response || !response.success) {
                 throw new Error('loadDictFile failed: ' + (response ? response.error : 'unknown'));
@@ -177,12 +174,7 @@ function _loadDictFromNative(filename) {
             for (var i = 0; i < binStr.length; i++) { bytes[i] = binStr.charCodeAt(i); }
             chunks.push(bytes);
             offset += bytes.length;
-            // ログはチャンク数が多いため約10%ごとに間引き
-            if (totalSize > 0 &&
-                (offset >= totalSize ||
-                 Math.floor(offset * 10 / totalSize) !== Math.floor((offset - bytes.length) * 10 / totalSize))) {
-                _sudachiNativeLog('Dict chunk: ' + offset + '/' + totalSize);
-            }
+            _sudachiNativeLog('Dict chunk: ' + offset + '/' + totalSize);
             if (offset >= totalSize) {
                 var result = new Uint8Array(totalSize);
                 var pos = 0;
@@ -302,11 +294,12 @@ function _checkFullDictStatus() {
 }
 
 function _loadDownloadedDict(dictType, totalSize) {
+    var CHUNK_SIZE = 16 * 1024 * 1024;
     var offset = 0;
     var chunks = [];
     function loadNext() {
         return browser.runtime.sendNativeMessage('con3.furikana', {
-            action: 'read_dictionary_chunk', dictType: dictType, offset: offset, chunkSize: _DICT_CHUNK_SIZE
+            action: 'read_dictionary_chunk', dictType: dictType, offset: offset, chunkSize: CHUNK_SIZE
         }).then(function(response) {
             if (!response || !response.success) throw new Error('read_dictionary_chunk failed');
             var binStr = atob(response.data);
