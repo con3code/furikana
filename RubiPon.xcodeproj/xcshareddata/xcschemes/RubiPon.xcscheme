@@ -16,9 +16,9 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "24D02A082F40E4AD002F902B"
-               BuildableName = "FuriFuri.app"
-               BlueprintName = "FuriFuri"
-               ReferencedContainer = "container:FuriFuri.xcodeproj">
+               BuildableName = "RubiPon.app"
+               BlueprintName = "RubiPon"
+               ReferencedContainer = "container:RubiPon.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -45,9 +45,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "24D02A082F40E4AD002F902B"
-            BuildableName = "FuriFuri.app"
-            BlueprintName = "FuriFuri"
-            ReferencedContainer = "container:FuriFuri.xcodeproj">
+            BuildableName = "RubiPon.app"
+            BlueprintName = "RubiPon"
+            ReferencedContainer = "container:RubiPon.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -62,9 +62,9 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "24D02A082F40E4AD002F902B"
-            BuildableName = "FuriFuri.app"
-            BlueprintName = "FuriFuri"
-            ReferencedContainer = "container:FuriFuri.xcodeproj">
+            BuildableName = "RubiPon.app"
+            BlueprintName = "RubiPon"
+            ReferencedContainer = "container:RubiPon.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

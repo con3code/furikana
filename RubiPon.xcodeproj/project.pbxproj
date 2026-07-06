@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		24D02A272F40E4B1002F902B /* FuriFuri Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 24D02A262F40E4B1002F902B /* FuriFuri Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		24D02A272F40E4B1002F902B /* RubiPon Extension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 24D02A262F40E4B1002F902B /* RubiPon Extension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -27,7 +27,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 13;
 			files = (
-				24D02A272F40E4B1002F902B /* FuriFuri Extension.appex in Embed Foundation Extensions */,
+				24D02A272F40E4B1002F902B /* RubiPon Extension.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -35,24 +35,24 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		24D02A092F40E4AD002F902B /* FuriFuri.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FuriFuri.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		24D02A262F40E4B1002F902B /* FuriFuri Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "FuriFuri Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
+		24D02A092F40E4AD002F902B /* RubiPon.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RubiPon.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		24D02A262F40E4B1002F902B /* RubiPon Extension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = "RubiPon Extension.appex"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		24D02A402F40E4B1002F902B /* Exceptions for "furikana" folder in "FuriFuri" target */ = {
+		24D02A402F40E4B1002F902B /* Exceptions for "furikana" folder in "RubiPon" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 24D02A082F40E4AD002F902B /* FuriFuri */;
+			target = 24D02A082F40E4AD002F902B /* RubiPon */;
 		};
-		24D02A442F40E4B1002F902B /* Exceptions for "furikana Extension" folder in "FuriFuri Extension" target */ = {
+		24D02A442F40E4B1002F902B /* Exceptions for "furikana Extension" folder in "RubiPon Extension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 24D02A252F40E4B1002F902B /* FuriFuri Extension */;
+			target = 24D02A252F40E4B1002F902B /* RubiPon Extension */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
@@ -60,7 +60,7 @@
 		24D02A0B2F40E4AD002F902B /* furikana */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				24D02A402F40E4B1002F902B /* Exceptions for "furikana" folder in "FuriFuri" target */,
+				24D02A402F40E4B1002F902B /* Exceptions for "furikana" folder in "RubiPon" target */,
 			);
 			path = furikana;
 			sourceTree = "<group>";
@@ -68,7 +68,7 @@
 		24D02A2A2F40E4B1002F902B /* furikana Extension */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				24D02A442F40E4B1002F902B /* Exceptions for "furikana Extension" folder in "FuriFuri Extension" target */,
+				24D02A442F40E4B1002F902B /* Exceptions for "furikana Extension" folder in "RubiPon Extension" target */,
 			);
 			explicitFolders = (
 				Resources/_locales,
@@ -109,8 +109,8 @@
 		24D02A0A2F40E4AD002F902B /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				24D02A092F40E4AD002F902B /* FuriFuri.app */,
-				24D02A262F40E4B1002F902B /* FuriFuri Extension.appex */,
+				24D02A092F40E4AD002F902B /* RubiPon.app */,
+				24D02A262F40E4B1002F902B /* RubiPon Extension.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -118,9 +118,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		24D02A082F40E4AD002F902B /* FuriFuri */ = {
+		24D02A082F40E4AD002F902B /* RubiPon */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 24D02A462F40E4B1002F902B /* Build configuration list for PBXNativeTarget "FuriFuri" */;
+			buildConfigurationList = 24D02A462F40E4B1002F902B /* Build configuration list for PBXNativeTarget "RubiPon" */;
 			buildPhases = (
 				24D02A052F40E4AD002F902B /* Sources */,
 				24D02A062F40E4AD002F902B /* Frameworks */,
@@ -135,16 +135,16 @@
 			fileSystemSynchronizedGroups = (
 				24D02A0B2F40E4AD002F902B /* furikana */,
 			);
-			name = FuriFuri;
+			name = RubiPon;
 			packageProductDependencies = (
 			);
 			productName = furikana;
-			productReference = 24D02A092F40E4AD002F902B /* FuriFuri.app */;
+			productReference = 24D02A092F40E4AD002F902B /* RubiPon.app */;
 			productType = "com.apple.product-type.application";
 		};
-		24D02A252F40E4B1002F902B /* FuriFuri Extension */ = {
+		24D02A252F40E4B1002F902B /* RubiPon Extension */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 24D02A412F40E4B1002F902B /* Build configuration list for PBXNativeTarget "FuriFuri Extension" */;
+			buildConfigurationList = 24D02A412F40E4B1002F902B /* Build configuration list for PBXNativeTarget "RubiPon Extension" */;
 			buildPhases = (
 				24D02A222F40E4B1002F902B /* Sources */,
 				24D02A232F40E4B1002F902B /* Frameworks */,
@@ -157,11 +157,11 @@
 			fileSystemSynchronizedGroups = (
 				24D02A2A2F40E4B1002F902B /* furikana Extension */,
 			);
-			name = "FuriFuri Extension";
+			name = "RubiPon Extension";
 			packageProductDependencies = (
 			);
 			productName = "furikana Extension";
-			productReference = 24D02A262F40E4B1002F902B /* FuriFuri Extension.appex */;
+			productReference = 24D02A262F40E4B1002F902B /* RubiPon Extension.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
@@ -183,7 +183,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 24D02A042F40E4AD002F902B /* Build configuration list for PBXProject "FuriFuri" */;
+			buildConfigurationList = 24D02A042F40E4AD002F902B /* Build configuration list for PBXProject "RubiPon" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -198,8 +198,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				24D02A082F40E4AD002F902B /* FuriFuri */,
-				24D02A252F40E4B1002F902B /* FuriFuri Extension */,
+				24D02A082F40E4AD002F902B /* RubiPon */,
+				24D02A252F40E4B1002F902B /* RubiPon Extension */,
 			);
 		};
 /* End PBXProject section */
@@ -241,7 +241,7 @@
 /* Begin PBXTargetDependency section */
 		24D02A292F40E4B1002F902B /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 24D02A252F40E4B1002F902B /* FuriFuri Extension */;
+			target = 24D02A252F40E4B1002F902B /* RubiPon Extension */;
 			targetProxy = 24D02A282F40E4B1002F902B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -256,7 +256,7 @@
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "furikana Extension/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = FuriFuri;
+				INFOPLIST_KEY_CFBundleDisplayName = "るびポン";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -290,7 +290,7 @@
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "furikana Extension/Info.plist";
-				INFOPLIST_KEY_CFBundleDisplayName = FuriFuri;
+				INFOPLIST_KEY_CFBundleDisplayName = "るびポン";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				IPHONEOS_DEPLOYMENT_TARGET = 15.4;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -326,7 +326,7 @@
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = furikana/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = FuriFuri;
+				INFOPLIST_KEY_CFBundleDisplayName = "るびポン";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -368,7 +368,7 @@
 				DEVELOPMENT_TEAM = SSMZZ3ZVGE;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = furikana/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = FuriFuri;
+				INFOPLIST_KEY_CFBundleDisplayName = "るびポン";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
@@ -525,7 +525,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		24D02A042F40E4AD002F902B /* Build configuration list for PBXProject "FuriFuri" */ = {
+		24D02A042F40E4AD002F902B /* Build configuration list for PBXProject "RubiPon" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				24D02A492F40E4B1002F902B /* Debug */,
@@ -534,7 +534,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		24D02A412F40E4B1002F902B /* Build configuration list for PBXNativeTarget "FuriFuri Extension" */ = {
+		24D02A412F40E4B1002F902B /* Build configuration list for PBXNativeTarget "RubiPon Extension" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				24D02A422F40E4B1002F902B /* Debug */,
@@ -543,7 +543,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		24D02A462F40E4B1002F902B /* Build configuration list for PBXNativeTarget "FuriFuri" */ = {
+		24D02A462F40E4B1002F902B /* Build configuration list for PBXNativeTarget "RubiPon" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				24D02A472F40E4B1002F902B /* Debug */,
