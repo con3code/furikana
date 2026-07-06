@@ -200,9 +200,18 @@ class VisibleTextProcessor {
         this.processing = false;
         this.scanTimer = null;
         this.running = false;
+        this.mutationObserver = null;
+        this.pendingHiddenScan = false;
 
         this.handleScroll = this.scheduleScan.bind(this);
         this.handleResize = this.scheduleScan.bind(this);
+        this.handleMutations = this.handleMutations.bind(this);
+        this.handleVisibility = () => {
+            if (!document.hidden && this.pendingHiddenScan) {
+                this.pendingHiddenScan = false;
+                this.scheduleScan();
+            }
+        };
     }
 
     start() {
@@ -211,6 +220,18 @@ class VisibleTextProcessor {
 
         window.addEventListener('scroll', this.handleScroll, { passive: true });
         window.addEventListener('resize', this.handleResize, { passive: true });
+        document.addEventListener('visibilitychange', this.handleVisibility);
+
+        // SPA遷移・無限スクロール等の動的コンテンツを検知
+        // （childList/characterData のみ監視 — 属性変更・自前のクラス付与は対象外）
+        if (typeof MutationObserver !== 'undefined' && document.body) {
+            this.mutationObserver = new MutationObserver(this.handleMutations);
+            this.mutationObserver.observe(document.body, {
+                childList: true,
+                subtree: true,
+                characterData: true
+            });
+        }
 
         this.scheduleScan();
     }
@@ -221,14 +242,54 @@ class VisibleTextProcessor {
         this.queuedNodes = new WeakSet();
         this.processedNodes = new WeakSet();
         this.processing = false;
+        this.pendingHiddenScan = false;
 
         if (this.scanTimer) {
             clearTimeout(this.scanTimer);
             this.scanTimer = null;
         }
 
+        if (this.mutationObserver) {
+            this.mutationObserver.disconnect();
+            this.mutationObserver = null;
+        }
+
         window.removeEventListener('scroll', this.handleScroll);
         window.removeEventListener('resize', this.handleResize);
+        document.removeEventListener('visibilitychange', this.handleVisibility);
+    }
+
+    // DOM変更を検知して再スキャンをスケジュール
+    // 自前のruby挿入によるレコードは processQueue 側の takeRecords() で破棄されるが、
+    // 念のためここでも furikana-ruby を含むレコードは無視する
+    handleMutations(records) {
+        if (!this.running) return;
+
+        let relevant = false;
+        for (const record of records) {
+            if (record.type === 'characterData') {
+                const node = record.target;
+                if (node && containsKanji(node.nodeValue || '')) {
+                    // テキストが書き換わったノードは処理済み扱いを解除して再処理対象に戻す
+                    this.processedNodes.delete(node);
+                    relevant = true;
+                }
+                continue;
+            }
+            if (record.type !== 'childList' || record.addedNodes.length === 0) continue;
+            for (const added of record.addedNodes) {
+                if (added.nodeType === Node.ELEMENT_NODE) {
+                    // 自前挿入の ruby は無視
+                    if (added.classList && added.classList.contains('furikana-ruby')) continue;
+                    if (containsKanji(added.textContent || '')) { relevant = true; break; }
+                } else if (added.nodeType === Node.TEXT_NODE) {
+                    if (containsKanji(added.nodeValue || '')) { relevant = true; break; }
+                }
+            }
+            if (relevant) break;
+        }
+
+        if (relevant) this.scheduleScan();
     }
 
     scheduleScan() {
@@ -241,6 +302,12 @@ class VisibleTextProcessor {
 
     scanVisibleTextNodes() {
         if (!this.running) return;
+
+        // 非表示タブではスキャンを保留（表示時に visibilitychange で再開）
+        if (document.hidden) {
+            this.pendingHiddenScan = true;
+            return;
+        }
 
         const textNodes = getTextNodes(document.body);
         let added = 0;
@@ -330,6 +397,12 @@ class VisibleTextProcessor {
                     // 失敗時は processedNodes に入れない → 次のスキャンで再取得
                 }
 
+                // 自前のDOM置換で発生した MutationObserver レコードを破棄
+                // （同期ブロック内で takeRecords すればコールバック発火前に消せる）
+                if (this.mutationObserver) {
+                    this.mutationObserver.takeRecords();
+                }
+
                 if (this.pending.length > 0) {
                     await new Promise(resolve => setTimeout(resolve, this.batchDelay));
                 }
@@ -377,6 +450,8 @@ function applyRubyCSS() {
       font-size: ${rtSize}% !important;
       margin-block-start: ${rubyGap}px !important;
       pointer-events: none;
+      -webkit-user-select: none !important;
+      user-select: none !important;
     }` : `
     .furikana-ruby {
       vertical-align: baseline !important;
@@ -388,6 +463,8 @@ function applyRubyCSS() {
       font-size: var(--furikana-ruby-size) !important;
       margin-block-end: ${rubyGap}px !important;
       pointer-events: none;
+      -webkit-user-select: none !important;
+      user-select: none !important;
     }`;
 
     style.textContent = `
@@ -758,6 +835,24 @@ async function sendNativeMessage(action, data = {}) {
     }
 }
 
+// 親要素ごとの closest() 判定キャッシュ
+// スキャンは scroll 毎に全ツリーを再走査するため、同じ親要素への
+// closest('ruby')・広告セレクタ判定を毎回実行するとコストが大きい。
+// DOM構造依存の判定のみキャッシュ（isContentEditable は動的に変わり得るため対象外）。
+const ancestorExclusionCache = new WeakMap();
+
+function isInsideExcludedAncestor(parent) {
+    const cached = ancestorExclusionCache.get(parent);
+    if (cached !== undefined) return cached;
+
+    // 祖先に既存の ruby がある場合は除外（rb の孫テキスト等）
+    // 広告ブロック内も除外（Yahoo等のストリーム広告）
+    const excluded = !!(parent.closest('ruby') ||
+        parent.closest('.yadsStream, [id^="STREAMAD"], [data-ad-region], [data-google-query-id]'));
+    ancestorExclusionCache.set(parent, excluded);
+    return excluded;
+}
+
 // テキストノードを取得
 function getTextNodes(element) {
     const textNodes = [];
@@ -772,18 +867,18 @@ function getTextNodes(element) {
                 }
                 const parent = node.parentElement;
                 if (parent) {
-                    // スクリプト/スタイル/RUBY/RT/RB タグ内は除外
+                    // スクリプト/スタイル/RUBY/RT/RB/フォーム系タグ内は除外
                     const tag = parent.tagName;
-                    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'RUBY' || tag === 'RT' || tag === 'RB') {
+                    if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'RUBY' || tag === 'RT' || tag === 'RB' ||
+                        tag === 'TEXTAREA' || tag === 'INPUT' || tag === 'SELECT' || tag === 'OPTION') {
                         return NodeFilter.FILTER_REJECT;
                     }
-                    // 祖先に既存の ruby がある場合も除外（rb の孫テキスト等）
-                    if (parent.closest('ruby')) {
+                    // 編集可能領域内は除外（ruby挿入で入力内容・カーソル・IMEが壊れる）
+                    if (parent.isContentEditable) {
                         return NodeFilter.FILTER_REJECT;
                     }
-
-                    // 広告ブロック内は除外（Yahoo等のストリーム広告）
-                    if (parent.closest('.yadsStream, [id^="STREAMAD"], [data-ad-region], [data-google-query-id]')) {
+                    // ruby 祖先・広告ブロック内は除外（判定はキャッシュ）
+                    if (isInsideExcludedAncestor(parent)) {
                         return NodeFilter.FILTER_REJECT;
                     }
                 }
@@ -879,12 +974,12 @@ function splitParenReadingTokens(tokens) {
 }
 
 // テキストノードが画面内に表示されているか判定
+// getComputedStyle は全候補ノードに対して呼ぶと重いため、
+// 先に矩形判定（display:none は rects が空になる）で絞ってから
+// ビューポート内の少数ノードに対してのみ visibility を確認する。
 function isTextNodeVisible(textNode) {
     const parent = textNode.parentElement;
     if (!parent || !parent.isConnected) return false;
-
-    const style = window.getComputedStyle(parent);
-    if (style.display === 'none' || style.visibility === 'hidden') return false;
 
     const range = document.createRange();
     range.selectNodeContents(textNode);
@@ -894,13 +989,16 @@ function isTextNodeVisible(textNode) {
     const vw = window.innerWidth || document.documentElement.clientWidth;
     const vh = window.innerHeight || document.documentElement.clientHeight;
 
+    let inViewport = false;
     for (const rect of rects) {
         if (rect.bottom >= 0 && rect.top <= vh && rect.right >= 0 && rect.left <= vw) {
-            return true;
+            inViewport = true;
+            break;
         }
     }
+    if (!inViewport) return false;
 
-    return false;
+    return window.getComputedStyle(parent).visibility !== 'hidden';
 }
 
 // ひらがなをローマ字に変換（ヘボン式）
@@ -1378,6 +1476,9 @@ function removeFurigana() {
 async function toggleFurigana() {
     console.log('[Furikana] toggleFurigana called, currently:', furikanaEnabled, 'dictType:', settings.dictType);
     if (furikanaEnabled) {
+        // 世代を進めて in-flight の旧結果を無効化（OFF→ON連打時の誤適用防止）
+        furikanaGeneration++;
+
         // ふりがなを削除
         removeFurigana();
         furikanaEnabled = false;

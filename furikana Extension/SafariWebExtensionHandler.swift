@@ -460,17 +460,16 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                         let nsRange = NSRange(location: cfReading.utf16Start, length: cfReading.utf16End - cfReading.utf16Start)
                         if let range = Range(nsRange, in: text) {
                             let surface = String(text[range])
-                            let startOffset = text.distance(from: text.startIndex, to: range.lowerBound)
-                            let endOffset = text.distance(from: text.startIndex, to: range.upperBound)
 
                             // 漢字を含む場合のみ長単位化を適用
                             if surface.range(of: "\\p{Han}", options: .regularExpression) != nil {
                                 let pos = mergedPos(for: rawTokens[i..<j])
+                                // range は JS 側の文字列インデックスに合わせて UTF-16 オフセットで返す
                                 tokens.append(TokenInfo(
                                     surface: surface,
                                     reading: cfReading.reading,
                                     pos: pos,
-                                    range: [startOffset, endOffset]
+                                    range: [cfReading.utf16Start, cfReading.utf16End]
                                 ))
                                 i = j
                                 cfIndex += 1
@@ -538,7 +537,7 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                             surface: combinedSurface,
                             reading: r,
                             pos: pos,
-                            range: [start, end]
+                            range: [rawTokens[i].utf16Start, rawTokens[j - 1].utf16End]
                         ))
                         i = j
                         continue
@@ -558,7 +557,7 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 surface: rawToken.surface,
                 reading: reading,
                 pos: rawToken.pos,
-                range: [rawToken.startOffset, rawToken.endOffset]
+                range: [rawToken.utf16Start, rawToken.utf16End]
             ))
             i += 1
         }

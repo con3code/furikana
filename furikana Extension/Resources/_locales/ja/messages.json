@@ -108,5 +108,96 @@
     "options_reading_rules": {
         "message": "読み補正ルールを適用（ルールベース）",
         "description": "Reading rules checkbox"
+    },
+    "options_user_dict_heading": {
+        "message": "ユーザー辞書",
+        "description": "User dictionary section heading"
+    },
+    "options_user_dict_desc": {
+        "message": "表層形とよみをタブ区切りで1行1語入力してください。組み込みルールより優先されます。",
+        "description": "User dictionary description"
+    },
+    "options_user_dict_save": {
+        "message": "辞書を保存",
+        "description": "Save user dictionary button"
+    },
+    "options_user_dict_saved": {
+        "message": "$COUNT$ 件のルールを保存しました",
+        "description": "User dictionary save success message",
+        "placeholders": { "count": { "content": "$1" } }
+    },
+    "options_user_dict_save_failed": {
+        "message": "保存に失敗しました: $ERROR$",
+        "description": "User dictionary save failure message",
+        "placeholders": { "error": { "content": "$1" } }
+    },
+    "popup_toggle_show": {
+        "message": "ふりがなを表示",
+        "description": "Popup toggle button (currently off)"
+    },
+    "popup_toggle_hide": {
+        "message": "ふりがなを非表示",
+        "description": "Popup toggle button (currently on)"
+    },
+    "popup_status_ready": {
+        "message": "準備完了",
+        "description": "Popup status: idle"
+    },
+    "popup_status_processing": {
+        "message": "処理中...",
+        "description": "Popup status: processing"
+    },
+    "popup_status_no_tab": {
+        "message": "タブが見つかりません",
+        "description": "Popup status: no tab"
+    },
+    "popup_status_shown": {
+        "message": "ふりがなを表示しました",
+        "description": "Popup status: furigana enabled"
+    },
+    "popup_status_hidden": {
+        "message": "ふりがなを非表示にしました",
+        "description": "Popup status: furigana disabled"
+    },
+    "popup_status_failed": {
+        "message": "処理に失敗しました",
+        "description": "Popup status: failure"
+    },
+    "popup_status_error": {
+        "message": "エラーが発生しました",
+        "description": "Popup status: error"
+    },
+    "popup_status_dict_loading": {
+        "message": "辞書読み込み中… $PCT$%",
+        "description": "Popup status: Sudachi dictionary loading progress",
+        "placeholders": {
+            "pct": { "content": "$1" }
+        }
+    },
+    "popup_status_dict_loaded": {
+        "message": "辞書の読み込みが完了しました",
+        "description": "Popup status: Sudachi dictionary loaded"
+    },
+    "popup_ruby_size": {
+        "message": "ルビサイズ: $VALUE$%",
+        "description": "Popup ruby size slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "popup_ruby_gap": {
+        "message": "ルビ行間隔: $VALUE$px",
+        "description": "Popup ruby gap slider label",
+        "placeholders": { "value": { "content": "$1" } }
+    },
+    "popup_auto_enable": {
+        "message": "自動ふりがな",
+        "description": "Popup auto-enable checkbox"
+    },
+    "popup_reverse_ruby": {
+        "message": "ひらがなメイン",
+        "description": "Popup reverse ruby checkbox"
+    },
+    "popup_open_settings": {
+        "message": "設定を開く",
+        "description": "Popup open settings button"
     }
 }

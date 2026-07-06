@@ -1,3 +1,7 @@
+:root {
+    color-scheme: light dark;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -282,5 +286,113 @@ button {
     max-height: 500px;
     opacity: 1;
     margin-top: 12px;
+}
+
+/* ユーザー辞書 */
+#user-dict {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: monospace;
+    font-size: 14px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    resize: vertical;
+    background-color: white;
+    color: #1d1d1f;
+}
+
+.user-dict-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+}
+
+.user-dict-actions .btn-primary {
+    flex-shrink: 0;
+}
+
+#user-dict-status {
+    font-size: 13px;
+    color: #666;
+}
+
+/* ダークモード */
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #1c1c1e;
+        color: #f5f5f7;
+    }
+
+    .container {
+        background-color: #2c2c2e;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.4);
+    }
+
+    h1, h2 {
+        color: #f5f5f7;
+    }
+
+    .section {
+        border-bottom-color: #38383a;
+    }
+
+    .description,
+    .dict-size,
+    #status-text,
+    #user-dict-status {
+        color: #98989d;
+    }
+
+    .dict-description {
+        color: #8e8e93;
+    }
+
+    .dictionary-item {
+        background-color: #3a3a3c;
+    }
+
+    .dictionary-item:hover {
+        background-color: #48484a;
+    }
+
+    .dict-radio-label.disabled:hover {
+        background-color: #3a3a3c;
+    }
+
+    .setting-item select {
+        background-color: #3a3a3c;
+        border-color: #48484a;
+        color: #f5f5f7;
+    }
+
+    .ruby-preview {
+        background-color: #3a3a3c;
+    }
+
+    .btn-reset {
+        background-color: #48484a;
+        color: #f5f5f7;
+    }
+
+    .btn-reset:hover {
+        background-color: #5a5a5e;
+    }
+
+    .accordion-icon {
+        border-left-color: #98989d;
+    }
+
+    #user-dict {
+        background-color: #3a3a3c;
+        border-color: #48484a;
+        color: #f5f5f7;
+    }
+
+    .setting-item input[type="range"],
+    .dict-radio-label input[type="radio"] {
+        accent-color: #0a84ff;
+    }
 }
 

@@ -1,3 +1,7 @@
+:root {
+    color-scheme: light dark;
+}
+
 * {
     margin: 0;
     padding: 0;
@@ -114,4 +118,33 @@ h1 {
 .quick-setting-item input[type="checkbox"] {
     margin-right: 6px;
     accent-color: #007aff;
+}
+
+/* ダークモード */
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #1c1c1e;
+    }
+
+    h1,
+    .quick-setting-item label {
+        color: #f5f5f7;
+    }
+
+    #status-text {
+        color: #98989d;
+    }
+
+    .divider {
+        background-color: #38383a;
+    }
+
+    .btn-link {
+        color: #0a84ff;
+    }
+
+    .quick-setting-item input[type="range"],
+    .quick-setting-item input[type="checkbox"] {
+        accent-color: #0a84ff;
+    }
 }

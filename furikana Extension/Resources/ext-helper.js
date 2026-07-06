@@ -156,6 +156,15 @@ function _errToString(e) {
     return String(e);
 }
 
+// 辞書ロード進捗（popup が getSudachiStatus 経由で参照する。書き込みはこのファイル内のみ）
+var sudachiLoadProgress = { loading: false, offset: 0, totalSize: 0 };
+
+function getSudachiLoadProgress() { return sudachiLoadProgress; }
+
+function _setSudachiProgress(loading, offset, totalSize) {
+    sudachiLoadProgress = { loading: loading, offset: offset, totalSize: totalSize };
+}
+
 function _loadDictFromNative(filename) {
     var CHUNK_SIZE = 16 * 1024 * 1024;
     var offset = 0;
@@ -174,6 +183,7 @@ function _loadDictFromNative(filename) {
             for (var i = 0; i < binStr.length; i++) { bytes[i] = binStr.charCodeAt(i); }
             chunks.push(bytes);
             offset += bytes.length;
+            _setSudachiProgress(true, offset, totalSize);
             _sudachiNativeLog('Dict chunk: ' + offset + '/' + totalSize);
             if (offset >= totalSize) {
                 var result = new Uint8Array(totalSize);
@@ -241,9 +251,12 @@ function isRecoverableError(errMsg) {
 }
 
 function reinitializeSudachi() {
-    try { sudachiTokenizer.free(); } catch (_) {}
+    try { if (sudachiTokenizer) sudachiTokenizer.free(); } catch (_) {}
     sudachiTokenizer = null;
     sudachiDictMode = null;
+    sudachiCachedDictKey = null;
+    sudachiInitPromise = null;
+    sudachiInitFailed = false;
 }
 
 function sudachiTokenize(text) {
@@ -252,10 +265,9 @@ function sudachiTokenize(text) {
     if (result && result.error) {
         var errMsg = result.error + (result.details ? ': ' + result.details : '');
         if (isRecoverableError(errMsg)) {
+            // 壊れたトークナイザーを破棄して throw（同期での再初期化は不可能なため、
+            // 次回リクエスト時の initSudachiWithFallback 再入で復旧させる）
             reinitializeSudachi();
-            var retry = sudachiTokenizer.tokenize_raw(text, SudachiWasm.TokenizeMode.C);
-            if (retry && retry.error) throw new Error(retry.error);
-            return convertSudachiTokens(retry);
         }
         throw new Error(errMsg);
     }
@@ -305,6 +317,7 @@ function _loadDownloadedDict(dictType, totalSize) {
             for (var i = 0; i < binStr.length; i++) { bytes[i] = binStr.charCodeAt(i); }
             chunks.push(bytes);
             offset += bytes.length;
+            _setSudachiProgress(true, offset, totalSize);
             if (offset >= totalSize) {
                 var result = new Uint8Array(totalSize);
                 var pos = 0;
@@ -339,8 +352,10 @@ function initSudachiWithFallback() {
         return initSudachiEmbedded();
     }).then(function() {
         sudachiFallbackPromise = null;
+        _setSudachiProgress(false, 0, 0);
     }, function(e) {
         sudachiFallbackPromise = null;
+        _setSudachiProgress(false, 0, 0);
         throw e;
     });
     return sudachiFallbackPromise;

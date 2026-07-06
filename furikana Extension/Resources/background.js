@@ -191,6 +191,7 @@ try {
                 try {
                     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
                     const allSettings = await browser.storage.local.get(null);
+                    delete allSettings.userDictRules;
                     await browser.runtime.sendNativeMessage('con3.furikana', {
                         action: 'syncSettings',
                         settings: allSettings
@@ -205,11 +206,12 @@ try {
             return true;
         }
 
-        // Sudachi 辞書ステータス問い合わせ（options.js から）
+        // Sudachi 辞書ステータス問い合わせ（options.js / popup.js から）
         if (request.action === 'getSudachiStatus') {
             sendResponse({
                 ready: (typeof isSudachiReady === 'function' && isSudachiReady()),
-                dictMode: (typeof getSudachiDictMode === 'function' ? getSudachiDictMode() : null)
+                dictMode: (typeof getSudachiDictMode === 'function' ? getSudachiDictMode() : null),
+                loadProgress: (typeof getSudachiLoadProgress === 'function' ? getSudachiLoadProgress() : null)
             });
             return false;
         }
@@ -302,7 +304,7 @@ try {
         if (dictType === 'sudachi') {
             // Sudachi WASM バッチ → native バッチフォールバック
             try {
-                if (typeof isSudachiReady !== 'function') throw new Error('sudachi-tokenizer.js not loaded');
+                if (typeof isSudachiReady !== 'function') throw new Error('ext-helper.js (Sudachi adapter) not loaded');
                 nativeLog('Batch sudachi: isSudachiReady=' + isSudachiReady());
                 if (!isSudachiReady()) {
                     nativeLog('Batch sudachi: initializing...');
@@ -362,7 +364,7 @@ try {
     async function trySudachiTokenization(request) {
         if (request.action !== 'tokenize' || !request.text) return null;
         try {
-            if (typeof isSudachiReady !== 'function') throw new Error('sudachi-tokenizer.js not loaded');
+            if (typeof isSudachiReady !== 'function') throw new Error('ext-helper.js (Sudachi adapter) not loaded');
             nativeLog('trySudachiTokenization: isSudachiReady=' + isSudachiReady());
             if (!isSudachiReady()) {
                 nativeLog('trySudachiTokenization: initializing...');
@@ -602,10 +604,13 @@ try {
         }
 
         // App Group に同期（デバウンス 300ms）
+        // userDictRules は除外（AppGroupに user_dict.tsv 原文が別途保存されており冗長。
+        // allPartitions展開後のデータが巨大になりUserDefaultsを圧迫する）
         if (syncTimer) clearTimeout(syncTimer);
         syncTimer = setTimeout(async () => {
             try {
                 const allSettings = await browser.storage.local.get(null);
+                delete allSettings.userDictRules;
                 await browser.runtime.sendNativeMessage('con3.furikana', {
                     action: 'syncSettings',
                     settings: allSettings

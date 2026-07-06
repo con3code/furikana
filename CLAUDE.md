@@ -20,17 +20,18 @@ Two targets: `FuriFuri` (iOS host app) and `FuriFuri Extension` (Safari web exte
 
 ### Manifest
 
-Manifest V3 (`manifest_version: 3`, requires Safari 15.4+ / iOS 15.4+). Background scripts: `["kuromoji.js", "background.js"]` with `persistent: false`. Content scripts load `reading-rules.js` before `content.js` (order matters — ReadingRules IIFE must be defined first). Localized with `_locales/en/` and `_locales/ja/`.
+Manifest V3 (`manifest_version: 3`, requires Safari 15.4+ / iOS 15.4+). Background scripts: `["kuromoji.js", "ext-helper.js", "sudachi-bundle.js", "background.js"]` with `persistent: false`（順序重要 — ext-helper.js と sudachi-bundle.js は background.js より先にロード）. Content scripts load `reading-rules.js` before `content.js` (order matters — ReadingRules IIFE must be defined first). Localized with `_locales/en/` and `_locales/ja/`.
 
 ## Architecture
 
 ### Tokenization Flow
 
 ```
-content.js → sendBatchTokenize (batch of texts)
+content.js → sendBatchTokenize (batch of texts, leading whitespace trimmed)
   → browser.runtime.sendMessage({ action: 'tokenizeBatch' })
     → background.js (handleTokenizeBatchRequest)
       ├─ dictType='ipadic' → kuromoji.js (IPA辞書, sync per text)
+      ├─ dictType='sudachi' → ext-helper.js (Sudachi WASM adapter)
       └─ dictType='system' → sendNativeMessage → Swift (tokenizeBatch)
                                ├─ Phase 1: NLTagger (tokens + POS)
                                ├─ Phase 2: CFStringTokenizer (readings)
@@ -38,11 +39,13 @@ content.js → sendBatchTokenize (batch of texts)
       → fallback: simpleTokenize (character-by-character)
 
 content.js receives batch results
-  → applyTokensToNode() per node
-    → ReadingRules.apply() → splitKanjiReading() → build <ruby> elements
+  → token range adjusted for trimmed leading whitespace
+  → splitParenReadingTokens() → ReadingRules.apply() → splitKanjiReading() → build <ruby> elements
 ```
 
-Both dict paths return the same token format: `{surface, reading, pos, range:[start,end]}`. ReadingRules and okurigana splitting run in content.js after receiving tokens from either backend.
+All dict paths return the same token format: `{surface, reading, pos, range:[start,end]}`. ReadingRules and okurigana splitting run in content.js after receiving tokens from either backend.
+
+**Leading whitespace trimming**: `processQueue` trims leading/trailing whitespace before sending to tokenizer (NLTagger returns empty tokens for text starting with `\n`). Token ranges are adjusted by adding `leadingWhitespace` offset after tokenization.
 
 **Batch tokenization**: `processQueue` collects up to 12 text nodes per batch and sends all texts in a single `tokenizeBatch` message (reduces IPC from 12 round-trips to 1). Single-node tokenization (`addFuriganaToNode`) is kept as backward-compatible wrapper.
 
@@ -57,18 +60,23 @@ Host app and extension share data via AppGroup (`group.con3.furikana`). `ViewCon
 - **`furikana Extension/Resources/content.js`** — Main extension logic. Key components:
   - `applyRubyCSS()` — Generates CSS with reverseRuby/normal mode branching. Normal mode uses Safari native `display: ruby`; reverse mode uses `display: inline-block` + absolute-positioned rt.
   - `splitKanjiReading(surface, reading)` — Separates okurigana so ruby only appears above kanji (regex-based, kuroshiro-style).
+  - `splitParenReadingTokens(tokens)` — Sudachi等が括弧付き読み注釈（"黎明（れいめい）期"）をsurfaceに含めて返す場合に分割処理。ReadingRules適用前に実行。
   - `RequestQueue` — Rate-limited native messaging (max 3 concurrent, 75ms interval). Distinguishes connection errors (background.js stopped) from tokenization errors — connection errors trigger 2s retry instead of cooldown.
   - `isConnectionError()` — Detects background.js unavailability ("Could not establish connection", "Receiving end does not exist" etc.).
-  - `VisibleTextProcessor` — Viewport-aware batch processing (12 nodes/batch). `processQueue` sends batch via `sendBatchTokenize`, applies results via `applyTokensToNode`.
+  - `VisibleTextProcessor` — Viewport-aware batch processing (12 nodes/batch). `processQueue` trims leading whitespace, sends batch via `sendBatchTokenize`, adjusts token ranges, applies results via `applyTokensToNode`. MutationObserver（childList/characterData）でSPA遷移・動的コンテンツを検知して再スキャン。自前のruby挿入レコードはバッチ適用直後の `takeRecords()` で破棄（自己トリガー防止）。非表示タブではスキャンを保留し visibilitychange で再開。
+  - `applyTokensToNode()` — `rubyCount === 0` の場合はDOM置換を行わない（テキストノードをそのまま保持）。
   - `rebuildFurigana()` — Common rebuild logic (removeFurigana → reset queue → restart processor).
   - `scheduleRebuild()` — Defers rebuild on hidden tabs; executes on `visibilitychange` when tab becomes visible.
   - `furikanaGeneration` counter — Discards stale in-flight results after settings change or re-render.
-  - `storage.onChanged` listener — Handles live updates for CSS sliders, readingType, unitType, readingRules, dictType, reverseRuby.
-  - `getTextNodes()` — Excludes SCRIPT, STYLE, RUBY, RT, RB tags and any text inside existing `<ruby>` ancestors (prevents double-ruby on sites using `<rb>` tags).
-- **`furikana Extension/Resources/background.js`** — Message router with dict routing: kuromoji (ipadic) → native Swift (system) → simpleTokenize fallback. Handles both `tokenize` (single) and `tokenizeBatch` (batch). Also handles kuromoji lifecycle (preload on ipadic selection, unload on system switch).
+  - `storage.onChanged` listener — Handles live updates for CSS sliders, readingType, unitType, readingRules, dictType, reverseRuby, userDictRules.
+  - `getTextNodes()` — Excludes SCRIPT, STYLE, RUBY, RT, RB, TEXTAREA/INPUT/SELECT/OPTION tags, contenteditable (`isContentEditable`), and any text inside existing `<ruby>` ancestors (prevents double-ruby on sites using `<rb>` tags). ruby祖先・広告セレクタの `closest()` 判定は `ancestorExclusionCache`（WeakMap）でキャッシュ。
+- **`furikana Extension/Resources/background.js`** — Message router with dict routing: kuromoji (ipadic) / Sudachi WASM (sudachi) / native Swift (system) → simpleTokenize fallback. Handles both `tokenize` (single) and `tokenizeBatch` (batch). Handles kuromoji/Sudachi lifecycle. ユーザー辞書の `updateUserDict` / `loadUserDict` メッセージも処理。`parseUserDictTSV()` でTSVをルールに変換し `browser.storage.local.set({ userDictRules })` で全タブに通知。
+- **`furikana Extension/Resources/ext-helper.js`** — Sudachi WASM アダプター（background scripts の2番目にロード）。Sudachi 初期化・トークン化・辞書チャンク読み込み（16MBチャンク — 1MBに縮小したところ同梱123MB辞書で往復が激増し初期化が完了せず、Sudachi選択時にふりがなが出なくなる退行が実機で発生。16MBが実績値）・数字読み補正を担当。旧 `sudachi-tokenizer.js`（未ロードの重複ファイル）は削除済み — Sudachi 関連の修正は必ずこのファイルに入れる。
+- **`furikana Extension/Resources/sudachi-bundle.js`** — Sudachi WASM 本体。`npm run build:sudachi` で生成（esbuild）、`scripts/patch-sudachi-bundle.js` でパッチ適用。`sudachi-dict/` に辞書ファイル。
 - **`furikana Extension/Resources/kuromoji.js`** + **`dict/`** — Bundled IPA dictionary tokenizer (~17MB). Loaded as background script alongside background.js.
-- **`furikana Extension/Resources/popup.js`** / **`popup.html`** — Toolbar popup (toggle, ruby size slider, auto-enable, reverse ruby toggle).
-- **`furikana Extension/Resources/options.js`** / **`options.html`** / **`options.css`** — Settings page (dict type, reading type, unit type, ruby styling sliders, auto-enable, reverse ruby, reading rules toggle). Includes live preview of ruby styling.
+- **`furikana Extension/Resources/popup.js`** / **`popup.html`** — Toolbar popup (toggle, ruby size slider, auto-enable, reverse ruby toggle). i18n対応（`data-i18n`/`data-i18n-template` + `t()` ヘルパー、`_locales` の `popup_*` キー）。スライダーは `change`/`pagehide` でデバウンス中の保存をフラッシュ。Sudachi辞書選択時はpopup表示中のみ `getSudachiStatus` を500msポーリングして辞書ロード進捗を status-text に表示（storage書き込み・ブロードキャスト不使用のため content.js / AppGroup同期に影響なし）。
+- **`furikana Extension/Resources/options.js`** / **`options.html`** / **`options.css`** — Settings page (dict type, reading type, unit type, ruby styling sliders, auto-enable, reverse ruby, reading rules toggle, user dictionary). Includes live preview of ruby styling. ホストアプリのWKWebViewでも表示される（browser.i18n 非対応環境ではHTMLの日本語がフォールバック）。
+- **popup.css / options.css** — `@media (prefers-color-scheme: dark)` でダークモード対応（`color-scheme: light dark` 宣言済み）。
 - **`furikana/ViewController.swift`** — Host app WKWebView controller. Injects `browser.storage.local` polyfill and back-button script. Bridges settings between web UI and UserDefaults via AppGroup.
 
 ### Ruby Display Modes
@@ -119,7 +127,7 @@ Rules have priority (higher = runs first). Regex rules support `$1`/`$2` capture
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `dictType` | `'system'`\|`'ipadic'` | `'system'` | Tokenization backend |
+| `dictType` | `'system'`\|`'ipadic'`\|`'sudachi'` | `'system'` | Tokenization backend |
 | `readingType` | `'hiragana'`\|`'romaji'` | `'hiragana'` | Ruby display format |
 | `unitType` | `'long'`\|`'short'` | `'long'` | Token merging granularity |
 | `autoEnable` | bool | `false` | Auto-apply on page load |
@@ -131,12 +139,16 @@ Rules have priority (higher = runs first). Regex rules support `$1`/`$2` capture
 | `rubyMinHeight` | int | `12` | Minimum block size (px) |
 | `rubyBoxPadding` | float | `0.15` | Paragraph padding (em) |
 | `rubyBoxMargin` | float | `0` | Paragraph margin (em) |
+| `userDictRules` | object\|null | `null` | ユーザー辞書ルール（`parseUserDictTSV`で生成、`{surfaceRules, sequenceRules}`形式） |
 
 ### Settings Change Flow
 
 Settings changed in popup/options → `browser.storage.local.set()` → `storage.onChanged` fires in content.js:
 - **CSS-only keys** (rubySize, rubyGap, etc.): `applyRubyCSS()` + `realignAllRubyWidths()`
 - **reverseRuby, readingType, unitType, readingRules, dictType**: `scheduleRebuild()` → defers to `rebuildFurigana()` (hidden tabs wait until visible)
+- **userDictRules**: `ReadingRules.setUserRules(rules)` → `scheduleRebuild()`
+
+**ユーザー辞書フロー**: options.js がTSVを `updateUserDict` メッセージで background.js に送信 → `parseUserDictTSV()` でルール変換 → `storage.local.set({ userDictRules })` で全タブに通知 → content.js の `storage.onChanged` で `ReadingRules.setUserRules()` を呼び出し。TSV原文は `saveUserDict` アクションで AppGroup にも永続化（`userDictRules`はExpansion後のデータが巨大になるためAppGroup同期から除外）。
 
 ### CSS Convention
 
@@ -153,10 +165,26 @@ Use logical properties (`inset-block-start`, `margin-block-end`, `min-block-size
 - **background.js lifecycle**: `persistent: false` means Safari can terminate background.js after idle. `isConnectionError()` detects this and triggers retry with 2s wait instead of entering cooldown. `sendBatchTokenize` retries once on connection error.
 - **Double-ruby prevention**: `getTextNodes()` excludes text inside any `<ruby>` ancestor (including `<rb>`, `<rt>`) to avoid adding furigana to sites that already use ruby markup.
 - **Background tab optimization**: `scheduleRebuild()` defers ruby rebuild on hidden tabs via `document.hidden` + `visibilitychange` listener, preventing unnecessary processing across all open tabs when settings change.
+- **NLTagger + 改行テキスト**: NLTagger は改行文字で始まるテキストに対して空のトークン配列を返す。`processQueue` でテキストをトリムしてからトークン化し、`leadingWhitespace` オフセットをトークンの `range` に加算して補正する。
+- **rubyCount === 0 のDOM置換スキップ**: `applyTokensToNode` でルビが1つも生成されなかった場合（漢字なし）、DOM置換を行わずそのまま `true` を返す。置換すると新テキストノードが `processedNodes` に未登録のまま残り、次のスキャンで再検出されて無限ループになる。
+- **userDictRules のAppGroup同期除外**: `allPartitions` 展開後のデータが巨大になるため、`userDictRules` は AppGroup の `syncSettings` / `forceSyncToAppGroup` から `delete` して除外。TSV原文は別途 `saveUserDict` アクションで AppGroup に保存。
+
+## Build Notes
+
+**Sudachi WASM バンドルの再生成**（`sudachi-bundle.js` を更新する場合）:
+```bash
+npm run build:sudachi
+```
+esbuild で `sudachi-wasm333` をバンドルし、`scripts/patch-sudachi-bundle.js` でパッチを適用。生成ファイルは `furikana Extension/Resources/sudachi-bundle.js`。
 
 ## Debugging
 
 JS ファイルの構文チェック: `node -c "furikana Extension/Resources/content.js"` — Safari 上でスクリプトが読み込まれない場合、まずこれで SyntaxError を確認する。
+
+**ログ確認場所**:
+- content.js / background.js: Safari → 開発 → 対象ページの Web インスペクタ
+- background.js のみ: Safari → 開発 → Web Extension Background Content
+- Swift ログ: Xcode コンソール（`os_log`）
 
 ## Language
 

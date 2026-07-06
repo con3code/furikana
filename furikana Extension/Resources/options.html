@@ -133,14 +133,14 @@
         <section class="section">
             <div class="accordion-header" id="user-dict-toggle">
                 <span class="accordion-icon"></span>
-                <h2>ユーザー辞書 (開発検証目的の暫定機能)</h2>
+                <h2 data-i18n="options_user_dict_heading">ユーザー辞書</h2>
             </div>
             <div id="user-dict-panel" class="accordion-panel">
-                <p class="description">表層形とよみをタブ区切りで1行1語入力してください。組み込みルールより優先されます。</p>
-                <textarea id="user-dict" rows="8" style="width:100%;box-sizing:border-box;font-family:monospace;font-size:14px;padding:8px;border:1px solid #ccc;border-radius:6px;resize:vertical;" placeholder="# 表層形&#9;読み&#10;令和&#9;れいわ&#10;五月雨&#9;さみだれ"></textarea>
-                <div style="display:flex;align-items:center;gap:12px;margin-top:8px;">
-                    <button id="save-user-dict" class="btn-primary" style="flex-shrink:0;">辞書を保存</button>
-                    <span id="user-dict-status" style="font-size:13px;color:#666;"></span>
+                <p class="description" data-i18n="options_user_dict_desc">表層形とよみをタブ区切りで1行1語入力してください。組み込みルールより優先されます。</p>
+                <textarea id="user-dict" rows="8" placeholder="# 表層形&#9;読み&#10;令和&#9;れいわ&#10;五月雨&#9;さみだれ"></textarea>
+                <div class="user-dict-actions">
+                    <button id="save-user-dict" class="btn-primary" data-i18n="options_user_dict_save">辞書を保存</button>
+                    <span id="user-dict-status" aria-live="polite"></span>
                 </div>
             </div>
         </section>

@@ -3,10 +3,10 @@
 // 問題: IIFE 末尾で initSync({ module: bytes }) が同期実行される
 //   → atob(2.3MB) + new WebAssembly.Module(1.66MB) が同期で走る
 //   → Safari の背景ページが kill されるか RangeError でクラッシュ
-//   → 後続スクリプト (sudachi-tokenizer.js, background.js) がロードされない
+//   → 後続スクリプト (ext-helper.js, background.js) がロードされない
 //
 // 修正: 同期 initSync を除去し、遅延初期化関数 _initWasmLazy() を追加
-//   → sudachi-tokenizer.js の initSudachiEmbedded() から非同期で呼び出す
+//   → ext-helper.js の initSudachiEmbedded() から非同期で呼び出す
 
 const fs = require('fs');
 const path = require('path');
