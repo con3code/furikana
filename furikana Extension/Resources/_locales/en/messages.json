@@ -188,6 +188,15 @@
         "description": "Popup ruby gap slider label",
         "placeholders": { "value": { "content": "$1" } }
     },
+    "popup_line_height": {
+        "message": "Line height: $VALUE$",
+        "description": "Popup line height slider label",
+        "placeholders": {
+            "value": {
+                "content": "$1"
+            }
+        }
+    },
     "popup_auto_enable": {
         "message": "Auto furigana",
         "description": "Popup auto-enable checkbox"

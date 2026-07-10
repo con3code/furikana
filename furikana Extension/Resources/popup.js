@@ -242,6 +242,19 @@ async function onRubyGapInput() {
     }, 150);
 }
 
+// 行の高さをストレージに保存
+let lineHeightSaveTimer = null;
+async function onLineHeightInput() {
+    const val = parseFloat(document.getElementById('popup-line-height').value);
+    document.getElementById('popup-line-height-value').textContent = val.toFixed(2);
+
+    if (lineHeightSaveTimer) clearTimeout(lineHeightSaveTimer);
+    lineHeightSaveTimer = setTimeout(async () => {
+        lineHeightSaveTimer = null;
+        await browser.storage.local.set({ rubyLineHeight: val });
+    }, 150);
+}
+
 // デバウンス中の保存を即時確定する
 // （スライダー操作直後にポップアップが閉じると setTimeout が発火せず値が失われるため、
 //   change イベント＝ドラッグ確定時と pagehide で必ずフラッシュする）
@@ -257,6 +270,12 @@ function flushPendingSaves() {
         rubyGapSaveTimer = null;
         const val = parseInt(document.getElementById('popup-ruby-gap').value, 10);
         browser.storage.local.set({ rubyGap: val }).catch(() => {});
+    }
+    if (lineHeightSaveTimer) {
+        clearTimeout(lineHeightSaveTimer);
+        lineHeightSaveTimer = null;
+        const val = parseFloat(document.getElementById('popup-line-height').value);
+        browser.storage.local.set({ rubyLineHeight: val }).catch(() => {});
     }
 }
 
@@ -282,11 +301,13 @@ async function loadPopupSettings() {
     try {
         await browser.runtime.sendMessage({ action: 'syncAppGroup' });
     } catch (e) { /* 同期失敗時はスキップ */ }
-    const s = await browser.storage.local.get({ rubySize: 50, rubyGap: 1, autoEnable: false, reverseRuby: false });
+    const s = await browser.storage.local.get({ rubySize: 50, rubyGap: 1, rubyLineHeight: 1.3, autoEnable: false, reverseRuby: false });
     document.getElementById('popup-ruby-size').value = s.rubySize;
     document.getElementById('popup-ruby-size-value').textContent = s.rubySize;
     document.getElementById('popup-ruby-gap').value = s.rubyGap;
     document.getElementById('popup-ruby-gap-value').textContent = s.rubyGap;
+    document.getElementById('popup-line-height').value = s.rubyLineHeight;
+    document.getElementById('popup-line-height-value').textContent = parseFloat(s.rubyLineHeight).toFixed(2);
     document.getElementById('popup-reverse-ruby').checked = s.reverseRuby;
     document.getElementById('popup-auto-enable').checked = s.autoEnable;
 }
@@ -311,6 +332,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rubyGapSlider = document.getElementById('popup-ruby-gap');
     rubyGapSlider.addEventListener('input', onRubyGapInput);
     rubyGapSlider.addEventListener('change', flushPendingSaves);
+
+    // 行の高さスライダー
+    const lineHeightSlider = document.getElementById('popup-line-height');
+    lineHeightSlider.addEventListener('input', onLineHeightInput);
+    lineHeightSlider.addEventListener('change', flushPendingSaves);
 
     // ポップアップが閉じる直前に未保存の値をフラッシュ
     window.addEventListener('pagehide', flushPendingSaves);
