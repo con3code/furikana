@@ -890,8 +890,9 @@ function restoreOverflowAncestors() {
 
 // --- サイト別表示スタイルの記憶 ---
 // popup のスライダー操作時にホスト名単位で6値のスナップショットが保存され（上限100件・
-// 最終更新が古いものからLRU削除）、ページ読み込み時にグローバル設定へ上書き適用される。
-// 記憶があるホストではグローバル6値の変更を無視（ピン留め）し、サイト値を優先する。
+// 最終更新が古いものからLRU削除）、ページ読み込み時に上書き適用される。
+// 記憶のないサイト（初訪問・LRUで押し出された場合）はリセット初期値で表示する。
+// 6値のページ表示はサイト記憶＋初期値のみで決まり、グローバル値は使わない。
 const SITE_STYLE_KEYS = ['rubySize', 'rubyGap', 'rubyLineHeight', 'rubyMinHeight', 'rubyBoxPadding', 'rubyBoxMargin'];
 const SITE_STYLE_DEFAULTS = { rubySize: 50, rubyGap: 1, rubyLineHeight: 1.3, rubyMinHeight: 12, rubyBoxPadding: 0.15, rubyBoxMargin: 0 };
 const FURIKANA_HOST = location.hostname || '';
@@ -907,10 +908,14 @@ function applySiteStyleEntry(entry) {
     return true;
 }
 
-// サイト別記憶が消去された時にグローバル値へ戻す
-async function restoreGlobalStyleValues() {
-    const g = await browser.storage.local.get(SITE_STYLE_DEFAULTS);
-    for (const key of SITE_STYLE_KEYS) settings[key] = g[key];
+// リセット初期値を settings に反映する（記憶なしサイトの表示値）
+function resetStyleValuesToDefaults() {
+    for (const key of SITE_STYLE_KEYS) settings[key] = SITE_STYLE_DEFAULTS[key];
+}
+
+// サイト別記憶が消去された時にリセット初期値へ戻す
+function restoreDefaultStyleValues() {
+    resetStyleValuesToDefaults();
     applyRubyCSS();
     if (!document.hidden) {
         realignAllRubyWidths();
@@ -941,11 +946,12 @@ async function loadSettings() {
     delete stored.siteStyleOverrides;
     settings = stored;
 
-    // このホストにサイト別記憶があればグローバル値に上書き
-    if (siteOverrides && FURIKANA_HOST && siteOverrides[FURIKANA_HOST]) {
-        if (applySiteStyleEntry(siteOverrides[FURIKANA_HOST])) {
-            console.log('[Furikana] Site style restored for', FURIKANA_HOST);
-        }
+    // 6値の表示: このホストにサイト別記憶があればそれを、なければリセット初期値を使う
+    if (siteOverrides && FURIKANA_HOST && siteOverrides[FURIKANA_HOST]
+        && applySiteStyleEntry(siteOverrides[FURIKANA_HOST])) {
+        console.log('[Furikana] Site style restored for', FURIKANA_HOST);
+    } else {
+        resetStyleValuesToDefaults();
     }
 
     applyRubyCSS();
@@ -1758,9 +1764,9 @@ browser.storage.onChanged.addListener((changes, areaName) => {
 
     for (const key of RUBY_CSS_KEYS) {
         if (changes[key]) {
-            // サイト別記憶を適用中のホストでは、6値のグローバル変更を無視（ピン留め）。
-            // 同一イベントにこのホストのサイト値が同梱されている場合はそちらを後で適用する
-            if (siteStyleActive && SITE_STYLE_KEYS.includes(key)) continue;
+            // 6値のグローバル変更はページ表示に使わない（サイト記憶＋初期値のみで決まる）。
+            // 変更はサイト記憶（siteStyleOverrides）の更新イベント経由で反映される
+            if (SITE_STYLE_KEYS.includes(key)) continue;
             settings[key] = changes[key].newValue;
             needUpdate = true;
             if (key === 'rubyBoxPadding' || key === 'rubyBoxMargin') {
@@ -1782,10 +1788,10 @@ browser.storage.onChanged.addListener((changes, areaName) => {
         }
         siteStyleActive = true;
     } else if (hostEntry === null && siteStyleActive) {
-        // 記憶が消去された（LRU押し出し or 手動クリア）→ グローバル値に戻す
+        // 記憶が消去された（LRU押し出し or 手動クリア）→ リセット初期値に戻す
         siteStyleActive = false;
-        console.log('[Furikana] Site style cleared for', FURIKANA_HOST, '- restoring global values');
-        restoreGlobalStyleValues();
+        console.log('[Furikana] Site style cleared for', FURIKANA_HOST, '- restoring default values');
+        restoreDefaultStyleValues();
     }
 
     if (needUpdate) {

@@ -110,7 +110,7 @@
         "description": "Reading rules checkbox"
     },
     "options_site_styles_desc": {
-        "message": "Slider values are automatically remembered per site (up to 100 sites) when adjusted from the popup, and restored on your next visit.",
+        "message": "Slider values are automatically remembered per site (up to 100 sites) when adjusted from the popup, and restored on your next visit. Sites without a memory are displayed with the reset defaults.",
         "description": "Options: per-site style memory"
     },
     "options_clear_site_styles": {

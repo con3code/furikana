@@ -67,16 +67,16 @@ async function resolveActiveSiteHost() {
 async function saveSiteStyleSnapshot(partial) {
     if (!activeSiteHost) return;
     try {
-        const stored = await browser.storage.local.get(
-            Object.assign({ siteStyleOverrides: {} }, SITE_STYLE_DEFAULTS)
-        );
+        const stored = await browser.storage.local.get({ siteStyleOverrides: {} });
         const overrides = stored.siteStyleOverrides || {};
         const prev = (overrides[activeSiteHost] && overrides[activeSiteHost].v) || {};
         const v = {};
         for (const key of SITE_STYLE_KEYS) {
+            // 補完順: 今回の変更 → 既存のサイト記憶 → リセット初期値
+            // （記憶のないサイトはリセット初期値で表示されているため、それをそのまま記憶する）
             v[key] = (partial[key] !== undefined) ? partial[key]
                    : (prev[key] !== undefined) ? prev[key]
-                   : stored[key];
+                   : SITE_STYLE_DEFAULTS[key];
         }
         overrides[activeSiteHost] = { v: v, t: Date.now() };
 
@@ -359,16 +359,16 @@ async function loadPopupSettings() {
     try {
         await browser.runtime.sendMessage({ action: 'syncAppGroup' });
     } catch (e) { /* 同期失敗時はスキップ */ }
-    const s = await browser.storage.local.get({ rubySize: 50, rubyGap: 1, rubyLineHeight: 1.3, autoEnable: false, reverseRuby: false, siteStyleOverrides: null });
+    const s = await browser.storage.local.get({ autoEnable: false, reverseRuby: false, siteStyleOverrides: null });
 
-    // アクティブタブのサイト別記憶があればスライダー初期値に反映
+    // スライダー初期値: サイト別記憶があればその値、なければリセット初期値
+    // （ページ表示と同じ決まり方。グローバル値は使わない）
     activeSiteHost = await resolveActiveSiteHost();
     const siteEntry = activeSiteHost && s.siteStyleOverrides && s.siteStyleOverrides[activeSiteHost];
-    if (siteEntry && siteEntry.v) {
-        if (siteEntry.v.rubySize !== undefined) s.rubySize = siteEntry.v.rubySize;
-        if (siteEntry.v.rubyGap !== undefined) s.rubyGap = siteEntry.v.rubyGap;
-        if (siteEntry.v.rubyLineHeight !== undefined) s.rubyLineHeight = siteEntry.v.rubyLineHeight;
-    }
+    const sv = (siteEntry && siteEntry.v) || {};
+    s.rubySize = (sv.rubySize !== undefined) ? sv.rubySize : SITE_STYLE_DEFAULTS.rubySize;
+    s.rubyGap = (sv.rubyGap !== undefined) ? sv.rubyGap : SITE_STYLE_DEFAULTS.rubyGap;
+    s.rubyLineHeight = (sv.rubyLineHeight !== undefined) ? sv.rubyLineHeight : SITE_STYLE_DEFAULTS.rubyLineHeight;
 
     document.getElementById('popup-ruby-size').value = s.rubySize;
     document.getElementById('popup-ruby-size-value').textContent = s.rubySize;
