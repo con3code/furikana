@@ -33,6 +33,11 @@ body {
     text-align: center;
 }
 
+/* フォーム部品は body の font-family を継承しないため明示（豆腐対策の続き） */
+button, select, input, textarea {
+    font-family: inherit;
+}
+
 /* 辞書管理セクション */
 #dict-section {
     width: 100%;
