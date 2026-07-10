@@ -342,6 +342,17 @@ const ReadingRules = (() => {
           replacement: 'はい',
           context: { prevPattern: /[24579２４５７９]$/ } },
 
+        // === 番: 数字の後は常に「ばん」（1番=いちばん、音便変化なし）===
+        // システム辞書では単独トークンの「番」に CFStringTokenizer が
+        // 不正な読み（ふぁあん等）を返すことがあるため、その補正を兼ねる
+        { id: 'ban-combined', priority: 130,
+          pattern: /^([0-9０-９]+)番$/,
+          replacement: '$1ばん' },
+        { id: 'ban-split', priority: 130,
+          pattern: /^番$/,
+          replacement: 'ばん',
+          context: { prevPattern: /[0-9０-９]$/ } },
+
         // === 本: ぽん(末尾1,6,8 + 2桁以上で末尾0) / ぼん(末尾3) / ほん(末尾2,4,5,7,9 + 単独0) ===
         { id: 'pon-tens-combined', priority: 135,
           pattern: new RegExp('^([0-9０-９]*' + PAKU_TENS + ')本$'),
