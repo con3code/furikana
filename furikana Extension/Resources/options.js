@@ -1,5 +1,9 @@
 // 設定画面のメインスクリプト
 
+// Chromium 系（Chrome/Edge 等）では Swift ネイティブホストが使えないため
+// 「システム辞書」の選択肢を隠す（ホストアプリWKWebView・Safari では表示）
+const FK_IS_CHROMIUM = typeof navigator !== 'undefined' && /Chrome\//.test(navigator.userAgent || '');
+
 // --- ユーザー辞書 TSV パーサ（background.js と同一ロジック） ---
 function parseUserDictTSV(tsvText) {
     var surfaceRules = [];
@@ -193,7 +197,9 @@ async function loadSettings() {
     document.getElementById('ruby-box-margin').value = s.rubyBoxMargin;
     updatePreview();
 
-    const radio = document.querySelector(`input[name="dictType"][value="${s.dictType}"]`);
+    // Chrome では 'system' が保存されていても実際は ipadic で動作する（background.js で正規化）
+    const effectiveDictType = (FK_IS_CHROMIUM && s.dictType === 'system') ? 'ipadic' : s.dictType;
+    const radio = document.querySelector(`input[name="dictType"][value="${effectiveDictType}"]`);
     if (radio) radio.checked = true;
 }
 
@@ -208,7 +214,7 @@ async function saveSettings() {
             autoEnable: document.getElementById('auto-enable').checked,
             reverseRuby: document.getElementById('reverse-ruby').checked,
             readingRules: document.getElementById('reading-rules').checked,
-            dictType: dictRadio ? dictRadio.value : 'system',
+            dictType: dictRadio ? dictRadio.value : (FK_IS_CHROMIUM ? 'ipadic' : 'system'),
             rubySize: parseInt(document.getElementById('ruby-size').value, 10),
             rubyGap: parseInt(document.getElementById('ruby-gap').value, 10),
             rubyLineHeight: parseFloat(document.getElementById('ruby-line-height').value),
@@ -284,6 +290,14 @@ function applyI18n() {
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         applyI18n();
+
+        // Chrome ではシステム辞書（ネイティブ解析）を選択肢から外す
+        if (FK_IS_CHROMIUM) {
+            const systemRadio = document.querySelector('input[name="dictType"][value="system"]');
+            const systemItem = systemRadio && systemRadio.closest('.dictionary-item');
+            if (systemItem) systemItem.style.display = 'none';
+        }
+
         await loadSettings();
 
         // Sudachi 辞書モード表示

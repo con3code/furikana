@@ -3,10 +3,24 @@ console.log('[Furikana] Background script starting...');
 console.log('[Furikana] kuromoji available:', typeof kuromoji !== 'undefined');
 console.log('[Furikana] Sudachi available:', typeof isSudachiReady === 'function');
 
+// --- プラットフォーム判定 ---
+// Chromium 系（Chrome/Edge 等）には Swift ネイティブホストが存在しない。
+// ネイティブメッセージング（AppGroup 同期・辞書チャンク読み込み・os_log）は Safari 専用。
+var FK_IS_CHROMIUM = typeof navigator !== 'undefined' && /Chrome\//.test(navigator.userAgent || '');
+var FK_HAS_NATIVE = !FK_IS_CHROMIUM;
+
+// dictType の正規化: ネイティブホストのない環境で 'system' が指定されていたら
+// 'ipadic'（kuromoji）にフォールバックする
+function fkNormalizeDictType(dictType) {
+    if (!FK_HAS_NATIVE && dictType === 'system') return 'ipadic';
+    return dictType;
+}
+
 // --- ネイティブログ（Console.app 用）---
 // sendNativeMessage で Swift 側の os_log に出力
 // fire-and-forget: レスポンスを待たない
 function nativeLog(message, level) {
+    if (!FK_HAS_NATIVE) return;
     try {
         browser.runtime.sendNativeMessage('con3.furikana', {
             action: 'jsLog',
@@ -127,13 +141,14 @@ try {
 
         if (details.reason === 'install') {
             // 初回インストール時のデフォルト設定
+            // ネイティブホストのない環境（Chrome等）では IPA 辞書を既定にする
             await browser.storage.local.set({
                 readingType: 'hiragana',
                 unitType: 'long',
                 autoEnable: false,
                 readingRules: true,
                 reverseRuby: false,
-                dictType: 'system'
+                dictType: FK_HAS_NATIVE ? 'system' : 'ipadic'
             });
 
             // 設定画面を開く
@@ -187,6 +202,10 @@ try {
         // 設定を即座に App Group へ同期（options.js の saveSettings から呼ばれる）
         // デバウンスをバイパスして確実に同期完了を待つ
         if (request.action === 'forceSyncToAppGroup') {
+            if (!FK_HAS_NATIVE) {
+                sendResponse({ success: true });
+                return false;
+            }
             (async () => {
                 try {
                     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
@@ -217,8 +236,10 @@ try {
         }
 
         // ツールバーアイコン切り替え
+        // Chrome は action.setIcon の SVG 非対応のため PNG を使う
         if (request.action === 'updateIcon') {
-            const icon = request.enabled ? 'images/toolbar-icon_on.svg' : 'images/toolbar-icon_off.svg';
+            const iconExt = FK_IS_CHROMIUM ? 'png' : 'svg';
+            const icon = request.enabled ? `images/toolbar-icon_on.${iconExt}` : `images/toolbar-icon_off.${iconExt}`;
             if (sender.tab && sender.tab.id != null) {
                 browser.action.setIcon({ tabId: sender.tab.id, path: icon });
             }
@@ -226,7 +247,12 @@ try {
         }
 
         // 辞書ファイル読み込み: content.js(kuromoji) → ここ → Swift
+        // （Chrome では kuromoji が fetch で直接読むためこの経路は使われない）
         if (request.action === 'loadDictFile') {
+            if (!FK_HAS_NATIVE) {
+                sendResponse({ success: false, error: 'native messaging unavailable' });
+                return false;
+            }
             handleLoadDictFile(request)
                 .then(result => sendResponse(result))
                 .catch(error => sendResponse({ success: false, error: error.message }));
@@ -238,20 +264,33 @@ try {
             var tsv = request.tsv || '';
             var rules = parseUserDictTSV(tsv);
             // storageに保存 → 各タブのcontent.jsに自動通知（完了を待ってから応答）
-            browser.storage.local.set({ userDictRules: rules }).then(function() {
+            // TSV原文の永続化先: Safari は AppGroup、Chrome は storage.local（userDictTSV）
+            var toStore = { userDictRules: rules };
+            if (!FK_HAS_NATIVE) toStore.userDictTSV = tsv;
+            browser.storage.local.set(toStore).then(function() {
                 sendResponse({ success: true, ruleCount: rules.surfaceRules.length });
             }).catch(function(e) {
                 sendResponse({ success: false, error: e.message });
             });
-            // AppGroupにもTSV原文を永続化
-            browser.runtime.sendNativeMessage('con3.furikana', {
-                action: 'saveUserDict', tsv: tsv
-            }).catch(function() {});
+            if (FK_HAS_NATIVE) {
+                // AppGroupにもTSV原文を永続化
+                browser.runtime.sendNativeMessage('con3.furikana', {
+                    action: 'saveUserDict', tsv: tsv
+                }).catch(function() {});
+            }
             return true;
         }
 
         // ユーザー辞書の読み込み（options.js から）
         if (request.action === 'loadUserDict') {
+            if (!FK_HAS_NATIVE) {
+                browser.storage.local.get({ userDictTSV: '' }).then(function(stored) {
+                    sendResponse({ success: true, tsv: stored.userDictTSV || '' });
+                }).catch(function() {
+                    sendResponse({ success: true, tsv: '' });
+                });
+                return true;
+            }
             browser.runtime.sendNativeMessage('con3.furikana', {
                 action: 'loadUserDict'
             }).then(function(response) {
@@ -267,8 +306,8 @@ try {
 
     // --- 辞書ルーティング ---
     async function handleTokenizeRequest(request) {
-        const settings = await browser.storage.local.get({ dictType: 'system' });
-        const dictType = settings.dictType;
+        const settings = await browser.storage.local.get({ dictType: FK_HAS_NATIVE ? 'system' : 'ipadic' });
+        const dictType = fkNormalizeDictType(settings.dictType);
 
         console.log('[Furikana] Dict type:', dictType);
 
@@ -296,8 +335,8 @@ try {
             return { success: false, error: 'No texts provided' };
         }
 
-        const settings = await browser.storage.local.get({ dictType: 'system' });
-        const dictType = settings.dictType;
+        const settings = await browser.storage.local.get({ dictType: FK_HAS_NATIVE ? 'system' : 'ipadic' });
+        const dictType = fkNormalizeDictType(settings.dictType);
 
         console.log(`[Furikana] Batch tokenize: ${texts.length} texts, dict: ${dictType}`);
 
@@ -338,6 +377,11 @@ try {
         }
 
         // native バッチ (system または kuromoji フォールバック)
+        if (!FK_HAS_NATIVE) {
+            // ネイティブホストなし: 最終フォールバックとして simpleTokenize で返す
+            const results = texts.map(text => ({ tokens: simpleTokenize(text), dictSource: 'fallback' }));
+            return { success: true, results };
+        }
         try {
             await Promise.resolve(); // onMessage の同期処理を抜ける
             const response = await browser.runtime.sendNativeMessage('con3.furikana', {
@@ -396,6 +440,7 @@ try {
 
     // ネイティブハンドラーでトークン化を試みる
     async function tryNativeTokenization(request) {
+        if (!FK_HAS_NATIVE) return null;
         try {
             console.log('[Furikana] Attempting native tokenization...');
 
@@ -532,6 +577,7 @@ try {
 
     // --- App Group からの設定同期（起動時）---
     async function syncFromAppGroup() {
+        if (!FK_HAS_NATIVE) return;
         try {
             await Promise.resolve(); // onMessage ハンドラー外で実行
             const response = await browser.runtime.sendNativeMessage('con3.furikana', {
@@ -549,6 +595,7 @@ try {
 
     // --- ユーザー辞書の起動時ロード ---
     function loadUserDictFromAppGroup() {
+        if (!FK_HAS_NATIVE) return; // Chrome では storage.local が永続化先のため不要
         browser.runtime.sendNativeMessage('con3.furikana', {
             action: 'loadUserDict'
         }).then(function(response) {
@@ -603,9 +650,10 @@ try {
             }
         }
 
-        // App Group に同期（デバウンス 300ms）
+        // App Group に同期（デバウンス 300ms）— Safari のみ
         // userDictRules は除外（AppGroupに user_dict.tsv 原文が別途保存されており冗長。
         // allPartitions展開後のデータが巨大になりUserDefaultsを圧迫する）
+        if (!FK_HAS_NATIVE) return;
         if (syncTimer) clearTimeout(syncTimer);
         syncTimer = setTimeout(async () => {
             try {

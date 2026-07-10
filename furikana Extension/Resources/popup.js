@@ -1,5 +1,9 @@
 // ポップアップのメインスクリプト
 
+// Chrome は action.setIcon の SVG 非対応のため PNG を使う
+const FK_IS_CHROMIUM = typeof navigator !== 'undefined' && /Chrome\//.test(navigator.userAgent || '');
+const FK_ICON_EXT = FK_IS_CHROMIUM ? 'png' : 'svg';
+
 let isEnabled = false;
 
 // i18n メッセージ取得（未定義キーや i18n 非対応環境ではフォールバックを返す）
@@ -61,7 +65,7 @@ async function toggleFurigana() {
             // ツールバーアイコンを更新
             browser.action.setIcon({
                 tabId: tab.id,
-                path: isEnabled ? 'images/toolbar-icon_on.svg' : 'images/toolbar-icon_off.svg'
+                path: isEnabled ? `images/toolbar-icon_on.${FK_ICON_EXT}` : `images/toolbar-icon_off.${FK_ICON_EXT}`
             }).catch(() => {});
             updateStatus(
                 isEnabled

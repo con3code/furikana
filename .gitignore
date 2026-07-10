@@ -9,6 +9,9 @@ xcuserdata/
 # Node
 node_modules/
 
+# Chrome 版ビルド出力
+dist/
+
 # macOS
 .DS_Store
 *.swp

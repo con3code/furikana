@@ -1,7 +1,12 @@
 // Sudachi WASM adapter (ext-helper.js)
 console.log('[Furikana] ext-helper.js loading...');
 
+// Chromium 系では Swift ネイティブホストが存在せず、代わりに拡張リソースを
+// fetch で直接読めるため、辞書ロード経路を切り替える
+var _sudachiIsChromium = typeof navigator !== 'undefined' && /Chrome\//.test(navigator.userAgent || '');
+
 function _sudachiNativeLog(message, level) {
+    if (_sudachiIsChromium) return;
     try {
         if (typeof browser !== 'undefined' && browser.runtime && browser.runtime.sendNativeMessage) {
             browser.runtime.sendNativeMessage('con3.furikana', {
@@ -197,6 +202,37 @@ function _loadDictFromNative(filename) {
     return loadNext();
 }
 
+// Chrome用: 拡張リソースの辞書ファイルを fetch でストリーミング読み込み
+// （進捗は Safari のチャンク読み込みと同じ sudachiLoadProgress に反映する）
+function _loadDictViaFetch(path) {
+    var url = browser.runtime.getURL(path);
+    return fetch(url).then(function(response) {
+        if (!response.ok) throw new Error('dict fetch failed: HTTP ' + response.status);
+        var totalSize = parseInt(response.headers.get('Content-Length') || '0', 10);
+        if (!response.body || !response.body.getReader) {
+            return response.arrayBuffer().then(function(buf) { return new Uint8Array(buf); });
+        }
+        var reader = response.body.getReader();
+        var chunks = [];
+        var received = 0;
+        function pump() {
+            return reader.read().then(function(result) {
+                if (result.done) {
+                    var out = new Uint8Array(received);
+                    var pos = 0;
+                    for (var i = 0; i < chunks.length; i++) { out.set(chunks[i], pos); pos += chunks[i].length; }
+                    return out;
+                }
+                chunks.push(result.value);
+                received += result.value.length;
+                _setSudachiProgress(true, received, totalSize);
+                return pump();
+            });
+        }
+        return pump();
+    });
+}
+
 function initSudachiEmbedded() {
     if (sudachiTokenizer && sudachiDictMode) return Promise.resolve();
     if (sudachiInitFailed) return Promise.reject(new Error('Sudachi init previously failed'));
@@ -205,6 +241,10 @@ function initSudachiEmbedded() {
         _sudachiNativeLog('initSudachiEmbedded: start');
         if (typeof SudachiWasm === 'undefined') { throw new Error('SudachiWasm not loaded'); }
         if (typeof SudachiWasm._initWasmLazy === 'function') { SudachiWasm._initWasmLazy(); }
+        if (_sudachiIsChromium) {
+            console.log('[Furikana] Loading Sudachi dict via fetch...');
+            return _loadDictViaFetch('sudachi-dict/system.dic');
+        }
         _sudachiNativeLog('Loading dict via native messaging...');
         return _loadDictFromNative('sudachi-dict/system.dic');
     }).then(function(dictBytes) {
@@ -333,6 +373,18 @@ function _loadDownloadedDict(dictType, totalSize) {
 function initSudachiWithFallback() {
     if (sudachiTokenizer && sudachiDictMode) return Promise.resolve();
     if (sudachiFallbackPromise) return sudachiFallbackPromise;
+    if (_sudachiIsChromium) {
+        // Chrome: ダウンロード辞書（ネイティブ管理）は存在しないため同梱辞書を fetch で読む
+        sudachiFallbackPromise = initSudachiEmbedded().then(function() {
+            sudachiFallbackPromise = null;
+            _setSudachiProgress(false, 0, 0);
+        }, function(e) {
+            sudachiFallbackPromise = null;
+            _setSudachiProgress(false, 0, 0);
+            throw e;
+        });
+        return sudachiFallbackPromise;
+    }
     sudachiFallbackPromise = _checkFullDictStatus().then(function(status) {
         if (status && status.available) {
             _sudachiNativeLog('Downloaded dict: type=' + status.dictType);
