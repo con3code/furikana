@@ -516,7 +516,6 @@ function applyRubyCSS() {
 
     const rubyCSS = reverseRuby ? `
     .furikana-ruby {
-      position: relative !important;
       display: inline-block !important;
       vertical-align: baseline !important;
       line-height: 1 !important;
@@ -526,10 +525,12 @@ function applyRubyCSS() {
     }
 
     .furikana-ruby > .furikana-rt {
+      /* rt はフロー内ブロックとして漢字の下に置く。inline-block の
+         ベースライン＝最後のフロー内行（＝ひらがな）になり、周囲のテキストと揃う。
+         position:absolute + inset-block-start:100% だと Chrome が指定を忠実に
+         適用してひらがながベースライン下にぶら下がり、行がガタガタにずれる
+         （Safari は rt の display/position 上書きを無視するため崩れなかった） */
       display: block !important;
-      position: absolute !important;
-      inset-block-start: 100% !important;
-      inset-inline-start: 0 !important;
       white-space: nowrap !important;
       line-height: 1 !important;
       font-size: ${rtSize}% !important;

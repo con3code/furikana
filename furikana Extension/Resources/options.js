@@ -113,15 +113,16 @@ function updatePreview() {
         if (!rt) return;
 
         if (reverseRuby) {
-            // 逆転モード: 漢字が縮小、rtが下に表示
+            // 逆転モード: 漢字が縮小、rtがフロー内ブロックとして下に表示
+            // （content.js の applyRubyCSS と同方式。absolute だと Chrome で崩れる）
             ruby.style.display = 'inline-block';
-            ruby.style.position = 'relative';
+            ruby.style.position = '';
             ruby.style.lineHeight = '1';
             ruby.style.fontSize = rubySize + '%';
             rt.style.display = 'block';
-            rt.style.position = 'absolute';
-            rt.style.insetBlockStart = '100%';
-            rt.style.insetInlineStart = '0';
+            rt.style.position = '';
+            rt.style.insetBlockStart = '';
+            rt.style.insetInlineStart = '';
             rt.style.fontSize = rtSize + '%';
             rt.style.marginBlockStart = gap;
             rt.style.marginBlockEnd = '';

@@ -8,7 +8,7 @@ Furikana is a browser extension that adds furigana (reading annotations) to Japa
 
 **製品名は「るびポン」(RubiPon)**（旧称 FuriFuri — App Store で名前衝突のため改名）。表示名（CFBundleDisplayName、_locales の extension_name、LaunchScreen、Main.html）とターゲット/スキーム/プロジェクト名・生成物名（`RubiPon.app` / `RubiPon Extension.appex`）は RubiPon に変更済み。**bundle ID `con3.furikana` と AppGroup `group.con3.furikana` は据え置き** — 変更すると証明書・AppGroupデータ・native messaging が壊れるため、今後も変更しないこと。 Two tokenization backends are available: native Swift (NLTagger + CFStringTokenizer) and kuromoji.js (IPA dictionary). Readings are rendered as HTML `<ruby>` tags with okurigana separation.
 
-Two display modes: **通常モード** (Safari native ruby — rt above kanji) and **ひらがなメインモード** (`reverseRuby` — small kanji above, full-size hiragana below via `display: block` + `position: absolute` on rt).
+Two display modes: **通常モード** (Safari native ruby — rt above kanji) and **ひらがなメインモード** (`reverseRuby` — small kanji above, full-size hiragana below; rt はフロー内の `display: block`。inline-block のベースライン＝最後のフロー内行＝ひらがな行になり周囲のテキストと揃う).
 
 ## Build
 
@@ -110,7 +110,7 @@ Host app and extension share data via AppGroup (`group.con3.furikana`). `ViewCon
 
 **ひらがなメインモード** (`reverseRuby: true`):
 - Ruby gets `display: inline-block` + `font-size: rubySize%` (kanji shrinks).
-- Rt gets `display: block` + `position: absolute` + `inset-block-start: 100%` (appears below kanji).
+- Rt gets `display: block`（フロー内、appears below kanji）。**`position: absolute` + `inset-block-start: 100%` にしないこと** — Chrome は指定を忠実に適用するためひらがながベースライン下にぶら下がり行がガタガタに崩れる（Safari は rt の display/position 上書きを無視するため差が出ない）。フロー内ブロックなら inline-block のベースライン＝ひらがな行になり両ブラウザで周囲のテキストと揃う。
 - Rt font-size is calculated as `100/rubySize*100`% to cancel the parent's shrinkage.
 - `rubyGap` applies as `margin-block-start` on rt.
 
