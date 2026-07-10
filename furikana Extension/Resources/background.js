@@ -211,6 +211,7 @@ try {
                     if (syncTimer) { clearTimeout(syncTimer); syncTimer = null; }
                     const allSettings = await browser.storage.local.get(null);
                     delete allSettings.userDictRules;
+                    delete allSettings.siteStyleOverrides;
                     await browser.runtime.sendNativeMessage('con3.furikana', {
                         action: 'syncSettings',
                         settings: allSettings
@@ -659,6 +660,9 @@ try {
             try {
                 const allSettings = await browser.storage.local.get(null);
                 delete allSettings.userDictRules;
+                // siteStyleOverrides も除外（background再起動時の syncFromAppGroup で
+                // 古い記憶に巻き戻るのを防ぐ。サイト別記憶は拡張 storage のみで完結）
+                delete allSettings.siteStyleOverrides;
                 await browser.runtime.sendNativeMessage('con3.furikana', {
                     action: 'syncSettings',
                     settings: allSettings

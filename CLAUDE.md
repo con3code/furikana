@@ -162,6 +162,7 @@ Rules have priority (higher = runs first). Regex rules support `$1`/`$2` capture
 | `rubyBoxPadding` | float | `0.15` | Paragraph padding (em) |
 | `rubyBoxMargin` | float | `0` | Paragraph margin (em) |
 | `userDictRules` | object\|null | `null` | ユーザー辞書ルール（`parseUserDictTSV`で生成、`{surfaceRules, sequenceRules}`形式） |
+| `siteStyleOverrides` | object\|null | `null` | サイト別表示スタイル記憶。`{ホスト名: {v: {6値}, t: 最終更新epoch}}`。上限100件LRU |
 
 ### Settings Change Flow
 
@@ -169,6 +170,8 @@ Settings changed in popup/options → `browser.storage.local.set()` → `storage
 - **CSS-only keys** (rubySize, rubyGap, etc.): `applyRubyCSS()` + `realignAllRubyWidths()`
 - **reverseRuby, readingType, unitType, readingRules, dictType**: `scheduleRebuild()` → defers to `rebuildFurigana()` (hidden tabs wait until visible)
 - **userDictRules**: `ReadingRules.setUserRules(rules)` → `scheduleRebuild()`
+
+**サイト別表示スタイル記憶**: popup のスライダー操作時に `saveSiteStyleSnapshot()` がアクティブタブのホスト名単位で6値（rubySize/rubyGap/rubyLineHeight/rubyMinHeight/rubyBoxPadding/rubyBoxMargin）のスナップショットを `siteStyleOverrides` に保存（上限100件、`t` が古いものからLRU削除）。content.js は `loadSettings()` でこのホストの記憶をグローバル値に上書き適用し、`siteStyleActive` 中はグローバル6値の `onChanged` を無視（ピン留め）。サイト値の変更・消去は `changes.siteStyleOverrides` 経由で反映。options 画面での変更はグローバルのみ（サイト記憶は popup 操作時に現在値一式をスナップショット）。options に全消去ボタンあり。**AppGroup 同期からは userDictRules 同様に除外**（background 再起動時の巻き戻り防止）。
 
 **ユーザー辞書フロー**: options.js がTSVを `updateUserDict` メッセージで background.js に送信 → `parseUserDictTSV()` でルール変換 → `storage.local.set({ userDictRules })` で全タブに通知 → content.js の `storage.onChanged` で `ReadingRules.setUserRules()` を呼び出し。TSV原文は `saveUserDict` アクションで AppGroup にも永続化（`userDictRules`はExpansion後のデータが巨大になるためAppGroup同期から除外）。
 

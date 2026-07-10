@@ -109,6 +109,27 @@
         "message": "Apply reading correction rules (rule-based)",
         "description": "Reading rules checkbox"
     },
+    "options_site_styles_desc": {
+        "message": "Slider values are automatically remembered per site (up to 100 sites) when adjusted from the popup, and restored on your next visit.",
+        "description": "Options: per-site style memory"
+    },
+    "options_clear_site_styles": {
+        "message": "Clear per-site memory",
+        "description": "Options: per-site style memory"
+    },
+    "options_site_styles_cleared": {
+        "message": "Cleared $COUNT$ remembered site(s)",
+        "description": "Options: per-site style memory",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "options_site_styles_clear_failed": {
+        "message": "Failed to clear",
+        "description": "Options: per-site style memory"
+    },
     "options_user_dict_heading": {
         "message": "User Dictionary",
         "description": "User dictionary section heading"

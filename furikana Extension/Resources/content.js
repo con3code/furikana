@@ -888,6 +888,36 @@ function restoreOverflowAncestors() {
     });
 }
 
+// --- サイト別表示スタイルの記憶 ---
+// popup のスライダー操作時にホスト名単位で6値のスナップショットが保存され（上限100件・
+// 最終更新が古いものからLRU削除）、ページ読み込み時にグローバル設定へ上書き適用される。
+// 記憶があるホストではグローバル6値の変更を無視（ピン留め）し、サイト値を優先する。
+const SITE_STYLE_KEYS = ['rubySize', 'rubyGap', 'rubyLineHeight', 'rubyMinHeight', 'rubyBoxPadding', 'rubyBoxMargin'];
+const SITE_STYLE_DEFAULTS = { rubySize: 50, rubyGap: 1, rubyLineHeight: 1.3, rubyMinHeight: 12, rubyBoxPadding: 0.15, rubyBoxMargin: 0 };
+const FURIKANA_HOST = location.hostname || '';
+let siteStyleActive = false; // このホストのサイト別記憶を適用中か
+
+// サイト別記憶エントリを settings に上書き適用する
+function applySiteStyleEntry(entry) {
+    if (!entry || !entry.v) return false;
+    for (const key of SITE_STYLE_KEYS) {
+        if (entry.v[key] !== undefined) settings[key] = entry.v[key];
+    }
+    siteStyleActive = true;
+    return true;
+}
+
+// サイト別記憶が消去された時にグローバル値へ戻す
+async function restoreGlobalStyleValues() {
+    const g = await browser.storage.local.get(SITE_STYLE_DEFAULTS);
+    for (const key of SITE_STYLE_KEYS) settings[key] = g[key];
+    applyRubyCSS();
+    if (!document.hidden) {
+        realignAllRubyWidths();
+        updateLineSpacingForAll();
+    }
+}
+
 // 設定を読み込み
 async function loadSettings() {
     const stored = await browser.storage.local.get({
@@ -903,10 +933,21 @@ async function loadSettings() {
         rubyMinHeight: 12,
         rubyBoxPadding: 0.15,
         rubyBoxMargin: 0,
-        userDictRules: null
+        userDictRules: null,
+        siteStyleOverrides: null
     });
 
+    const siteOverrides = stored.siteStyleOverrides;
+    delete stored.siteStyleOverrides;
     settings = stored;
+
+    // このホストにサイト別記憶があればグローバル値に上書き
+    if (siteOverrides && FURIKANA_HOST && siteOverrides[FURIKANA_HOST]) {
+        if (applySiteStyleEntry(siteOverrides[FURIKANA_HOST])) {
+            console.log('[Furikana] Site style restored for', FURIKANA_HOST);
+        }
+    }
+
     applyRubyCSS();
 
     // ユーザー辞書ルールを適用
@@ -1706,8 +1747,20 @@ browser.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local') return;
     let needUpdate = false;
     let needSpacingUpdate = false;
+
+    // サイト別記憶の変更（このホスト分のみ反映）
+    // hostEntry: undefined=このイベントに含まれず / null=このホストの記憶なし(消去) / object=新値
+    let hostEntry;
+    if (changes.siteStyleOverrides) {
+        const overrides = changes.siteStyleOverrides.newValue;
+        hostEntry = (overrides && FURIKANA_HOST && overrides[FURIKANA_HOST]) || null;
+    }
+
     for (const key of RUBY_CSS_KEYS) {
         if (changes[key]) {
+            // サイト別記憶を適用中のホストでは、6値のグローバル変更を無視（ピン留め）。
+            // 同一イベントにこのホストのサイト値が同梱されている場合はそちらを後で適用する
+            if (siteStyleActive && SITE_STYLE_KEYS.includes(key)) continue;
             settings[key] = changes[key].newValue;
             needUpdate = true;
             if (key === 'rubyBoxPadding' || key === 'rubyBoxMargin') {
@@ -1715,6 +1768,26 @@ browser.storage.onChanged.addListener((changes, areaName) => {
             }
         }
     }
+
+    if (hostEntry) {
+        // このホストのサイト別記憶が更新された → 上書き適用
+        for (const key of SITE_STYLE_KEYS) {
+            if (hostEntry.v && hostEntry.v[key] !== undefined && settings[key] !== hostEntry.v[key]) {
+                settings[key] = hostEntry.v[key];
+                needUpdate = true;
+                if (key === 'rubyBoxPadding' || key === 'rubyBoxMargin') {
+                    needSpacingUpdate = true;
+                }
+            }
+        }
+        siteStyleActive = true;
+    } else if (hostEntry === null && siteStyleActive) {
+        // 記憶が消去された（LRU押し出し or 手動クリア）→ グローバル値に戻す
+        siteStyleActive = false;
+        console.log('[Furikana] Site style cleared for', FURIKANA_HOST, '- restoring global values');
+        restoreGlobalStyleValues();
+    }
+
     if (needUpdate) {
         applyRubyCSS();
         if (!document.hidden) realignAllRubyWidths();

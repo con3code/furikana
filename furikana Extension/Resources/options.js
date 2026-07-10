@@ -353,6 +353,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('save-settings').addEventListener('click', saveSettings);
         document.getElementById('reset-sliders').addEventListener('click', resetSliders);
 
+        // サイト別表示スタイル記憶の消去
+        document.getElementById('clear-site-styles').addEventListener('click', async () => {
+            const statusEl = document.getElementById('clear-site-styles-status');
+            const hasI18n = typeof browser !== 'undefined' && browser.i18n && browser.i18n.getMessage;
+            try {
+                const stored = await browser.storage.local.get({ siteStyleOverrides: {} });
+                const count = Object.keys(stored.siteStyleOverrides || {}).length;
+                await browser.storage.local.set({ siteStyleOverrides: {} });
+                const countStr = String(count);
+                statusEl.textContent = hasI18n
+                    ? (browser.i18n.getMessage('options_site_styles_cleared', [countStr]) || countStr + '件の記憶を消去しました')
+                    : countStr + '件の記憶を消去しました';
+                statusEl.style.color = '#34c759';
+            } catch (e) {
+                statusEl.textContent = hasI18n
+                    ? (browser.i18n.getMessage('options_site_styles_clear_failed') || '消去に失敗しました')
+                    : '消去に失敗しました';
+                statusEl.style.color = '#ff3b30';
+            }
+        });
+
         // ユーザー辞書: アコーディオンヘッダークリックで開閉
         const userDictToggle = document.getElementById('user-dict-toggle');
         const userDictPanel = document.getElementById('user-dict-panel');

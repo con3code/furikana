@@ -109,6 +109,27 @@
         "message": "読み補正ルールを適用（ルールベース）",
         "description": "Reading rules checkbox"
     },
+    "options_site_styles_desc": {
+        "message": "表示設定のスライダー値はポップアップで操作したサイトごと（最大100件）に自動記憶され、次回訪問時に再現されます。",
+        "description": "Options: per-site style memory"
+    },
+    "options_clear_site_styles": {
+        "message": "サイト別の記憶を消去",
+        "description": "Options: per-site style memory"
+    },
+    "options_site_styles_cleared": {
+        "message": "$COUNT$件の記憶を消去しました",
+        "description": "Options: per-site style memory",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "options_site_styles_clear_failed": {
+        "message": "消去に失敗しました",
+        "description": "Options: per-site style memory"
+    },
     "options_user_dict_heading": {
         "message": "ユーザー辞書",
         "description": "User dictionary section heading"

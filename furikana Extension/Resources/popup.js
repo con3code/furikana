@@ -42,6 +42,59 @@ async function getCurrentTab() {
     return tabs[0];
 }
 
+// --- サイト別表示スタイルの記憶 ---
+// スライダー操作時に、アクティブタブのホスト名単位で6値のスナップショットを保存する。
+// 上限100件、超過時は最終更新が古いものから削除（LRU）。
+const SITE_STYLE_KEYS = ['rubySize', 'rubyGap', 'rubyLineHeight', 'rubyMinHeight', 'rubyBoxPadding', 'rubyBoxMargin'];
+const SITE_STYLE_DEFAULTS = { rubySize: 50, rubyGap: 1, rubyLineHeight: 1.3, rubyMinHeight: 12, rubyBoxPadding: 0.15, rubyBoxMargin: 0 };
+const SITE_STYLE_LIMIT = 100;
+let activeSiteHost = null; // ポップアップを開いた時点のアクティブタブのホスト名
+
+async function resolveActiveSiteHost() {
+    try {
+        const tab = await getCurrentTab();
+        if (!tab || !tab.url) return null;
+        const url = new URL(tab.url);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+        return url.hostname || null;
+    } catch (_) {
+        return null;
+    }
+}
+
+// 現在の6値スナップショットをアクティブタブのホストに記憶する
+// partial: 今回変更された値（それ以外は既存のサイト記憶 → グローバル値の順で補完）
+async function saveSiteStyleSnapshot(partial) {
+    if (!activeSiteHost) return;
+    try {
+        const stored = await browser.storage.local.get(
+            Object.assign({ siteStyleOverrides: {} }, SITE_STYLE_DEFAULTS)
+        );
+        const overrides = stored.siteStyleOverrides || {};
+        const prev = (overrides[activeSiteHost] && overrides[activeSiteHost].v) || {};
+        const v = {};
+        for (const key of SITE_STYLE_KEYS) {
+            v[key] = (partial[key] !== undefined) ? partial[key]
+                   : (prev[key] !== undefined) ? prev[key]
+                   : stored[key];
+        }
+        overrides[activeSiteHost] = { v: v, t: Date.now() };
+
+        // 上限超過: 最終更新が古いホストから削除
+        const hosts = Object.keys(overrides);
+        if (hosts.length > SITE_STYLE_LIMIT) {
+            hosts.sort((a, b) => ((overrides[a] && overrides[a].t) || 0) - ((overrides[b] && overrides[b].t) || 0));
+            for (let i = 0; i < hosts.length - SITE_STYLE_LIMIT; i++) {
+                delete overrides[hosts[i]];
+            }
+        }
+
+        await browser.storage.local.set({ siteStyleOverrides: overrides });
+    } catch (e) {
+        console.warn('[Furikana] Site style save failed:', e);
+    }
+}
+
 // ふりがなのトグル
 async function toggleFurigana() {
     const tab = await getCurrentTab();
@@ -226,6 +279,7 @@ async function onRubySizeInput() {
     rubySizeSaveTimer = setTimeout(async () => {
         rubySizeSaveTimer = null;
         await browser.storage.local.set({ rubySize: val });
+        saveSiteStyleSnapshot({ rubySize: val });
     }, 150);
 }
 
@@ -239,6 +293,7 @@ async function onRubyGapInput() {
     rubyGapSaveTimer = setTimeout(async () => {
         rubyGapSaveTimer = null;
         await browser.storage.local.set({ rubyGap: val });
+        saveSiteStyleSnapshot({ rubyGap: val });
     }, 150);
 }
 
@@ -252,6 +307,7 @@ async function onLineHeightInput() {
     lineHeightSaveTimer = setTimeout(async () => {
         lineHeightSaveTimer = null;
         await browser.storage.local.set({ rubyLineHeight: val });
+        saveSiteStyleSnapshot({ rubyLineHeight: val });
     }, 150);
 }
 
@@ -259,23 +315,25 @@ async function onLineHeightInput() {
 // （スライダー操作直後にポップアップが閉じると setTimeout が発火せず値が失われるため、
 //   change イベント＝ドラッグ確定時と pagehide で必ずフラッシュする）
 function flushPendingSaves() {
+    const pending = {};
     if (rubySizeSaveTimer) {
         clearTimeout(rubySizeSaveTimer);
         rubySizeSaveTimer = null;
-        const val = parseInt(document.getElementById('popup-ruby-size').value, 10);
-        browser.storage.local.set({ rubySize: val }).catch(() => {});
+        pending.rubySize = parseInt(document.getElementById('popup-ruby-size').value, 10);
     }
     if (rubyGapSaveTimer) {
         clearTimeout(rubyGapSaveTimer);
         rubyGapSaveTimer = null;
-        const val = parseInt(document.getElementById('popup-ruby-gap').value, 10);
-        browser.storage.local.set({ rubyGap: val }).catch(() => {});
+        pending.rubyGap = parseInt(document.getElementById('popup-ruby-gap').value, 10);
     }
     if (lineHeightSaveTimer) {
         clearTimeout(lineHeightSaveTimer);
         lineHeightSaveTimer = null;
-        const val = parseFloat(document.getElementById('popup-line-height').value);
-        browser.storage.local.set({ rubyLineHeight: val }).catch(() => {});
+        pending.rubyLineHeight = parseFloat(document.getElementById('popup-line-height').value);
+    }
+    if (Object.keys(pending).length > 0) {
+        browser.storage.local.set(pending).catch(() => {});
+        saveSiteStyleSnapshot(pending);
     }
 }
 
@@ -301,7 +359,17 @@ async function loadPopupSettings() {
     try {
         await browser.runtime.sendMessage({ action: 'syncAppGroup' });
     } catch (e) { /* 同期失敗時はスキップ */ }
-    const s = await browser.storage.local.get({ rubySize: 50, rubyGap: 1, rubyLineHeight: 1.3, autoEnable: false, reverseRuby: false });
+    const s = await browser.storage.local.get({ rubySize: 50, rubyGap: 1, rubyLineHeight: 1.3, autoEnable: false, reverseRuby: false, siteStyleOverrides: null });
+
+    // アクティブタブのサイト別記憶があればスライダー初期値に反映
+    activeSiteHost = await resolveActiveSiteHost();
+    const siteEntry = activeSiteHost && s.siteStyleOverrides && s.siteStyleOverrides[activeSiteHost];
+    if (siteEntry && siteEntry.v) {
+        if (siteEntry.v.rubySize !== undefined) s.rubySize = siteEntry.v.rubySize;
+        if (siteEntry.v.rubyGap !== undefined) s.rubyGap = siteEntry.v.rubyGap;
+        if (siteEntry.v.rubyLineHeight !== undefined) s.rubyLineHeight = siteEntry.v.rubyLineHeight;
+    }
+
     document.getElementById('popup-ruby-size').value = s.rubySize;
     document.getElementById('popup-ruby-size-value').textContent = s.rubySize;
     document.getElementById('popup-ruby-gap').value = s.rubyGap;
