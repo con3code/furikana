@@ -187,6 +187,16 @@ class RequestQueue {
 // maxConcurrent=3, intervalDelay=75ms
 const requestQueue = new RequestQueue(3, 75);
 
+// 外部DOM書き換えエージェント（Safari翻訳等）との往復ループ防止パラメータ
+// 同一親要素が LOOP_GUARD_WINDOW_MS 内に LOOP_GUARD_MAX_REPROCESS 回を超えて
+// 再処理されたら、その要素を以降のスキャン対象から除外する
+const LOOP_GUARD_MAX_REPROCESS = 3;
+const LOOP_GUARD_WINDOW_MS = 30000;
+// mutation起因の再スキャンが高頻度で続く場合のグローバルバックオフ
+const MUTATION_BACKOFF_THRESHOLD = 5;      // ウィンドウ内の許容スキャン回数
+const MUTATION_BACKOFF_WINDOW_MS = 10000;
+const MUTATION_BACKOFF_MAX_MS = 30000;
+
 // 画面内のテキストのみを順次処理するためのマネージャ
 class VisibleTextProcessor {
     constructor({ batchSize = 12, batchDelay = 60, scanDelay = 150, maxPending = 200 } = {}) {
@@ -202,6 +212,16 @@ class VisibleTextProcessor {
         this.running = false;
         this.mutationObserver = null;
         this.pendingHiddenScan = false;
+
+        // ループガード: 親要素ごとの再処理記録（スキャン世代で重複カウントを防止）
+        this.scanSequence = 0;
+        this.elementProcessMap = new WeakMap();  // 親要素 → { count, firstAt, lastSeq }
+        this.blockedElements = new WeakSet();    // ループ検出で除外した親要素
+        // グローバルバックオフ: mutation起因スキャンの頻度制御
+        this.mutationScanCount = 0;
+        this.mutationWindowStart = 0;
+        this.mutationBackoffMs = 0;
+        this.lastRelevantMutationAt = 0;
 
         this.handleScroll = this.scheduleScan.bind(this);
         this.handleResize = this.scheduleScan.bind(this);
@@ -289,15 +309,70 @@ class VisibleTextProcessor {
             if (relevant) break;
         }
 
-        if (relevant) this.scheduleScan();
+        if (relevant) this.scheduleScan(this.updateMutationBackoff());
     }
 
-    scheduleScan() {
+    // 親要素ごとの処理回数を記録し、短時間に繰り返し再処理される要素をループと判定して除外する
+    // （Safari翻訳がこちらのruby挿入を再翻訳で剥がす→再検出、の往復を断ち切る）
+    // 同一スキャン世代内の複数テキストノード（例: <p>内のインライン分割）は1回とカウント
+    recordElementProcess(el) {
+        const now = Date.now();
+        let rec = this.elementProcessMap.get(el);
+        if (!rec || now - rec.firstAt > LOOP_GUARD_WINDOW_MS) {
+            rec = { count: 0, firstAt: now, lastSeq: -1 };
+            this.elementProcessMap.set(el, rec);
+        }
+        if (rec.lastSeq === this.scanSequence) return;
+        rec.lastSeq = this.scanSequence;
+        rec.count++;
+        if (rec.count > LOOP_GUARD_MAX_REPROCESS) {
+            this.blockedElements.add(el);
+            console.warn('[Furikana] Loop guard: <' + el.tagName +
+                '> を再処理対象から除外（' + LOOP_GUARD_WINDOW_MS / 1000 + '秒間に' +
+                rec.count + '回再処理 — 翻訳機能等との競合の可能性）');
+        }
+    }
+
+    // mutation起因スキャンの頻度を計測し、高頻度が続く場合は追加遅延を返す
+    // （Safari翻訳等がこちらのruby挿入に反応してDOMを書き換え続ける場合の抑制弁）
+    updateMutationBackoff() {
+        const now = Date.now();
+
+        // 十分静かな期間が空いたらバックオフを解除
+        if (this.lastRelevantMutationAt &&
+            now - this.lastRelevantMutationAt > MUTATION_BACKOFF_WINDOW_MS) {
+            this.mutationBackoffMs = 0;
+            this.mutationScanCount = 0;
+            this.mutationWindowStart = now;
+        }
+        this.lastRelevantMutationAt = now;
+
+        if (now - this.mutationWindowStart > MUTATION_BACKOFF_WINDOW_MS) {
+            this.mutationWindowStart = now;
+            this.mutationScanCount = 0;
+        }
+        this.mutationScanCount++;
+
+        if (this.mutationScanCount > MUTATION_BACKOFF_THRESHOLD) {
+            this.mutationBackoffMs = Math.min(
+                Math.max(this.mutationBackoffMs * 2, 1000),
+                MUTATION_BACKOFF_MAX_MS
+            );
+            this.mutationScanCount = 0;
+            this.mutationWindowStart = now;
+            console.warn(`[Furikana] Mutation backoff: rescan delayed by ${this.mutationBackoffMs}ms`);
+        }
+        return this.scanDelay + this.mutationBackoffMs;
+    }
+
+    // delayMs 省略時（scroll/resize ハンドラから Event が渡る場合を含む）は既定遅延
+    scheduleScan(delayMs) {
         if (!this.running || this.scanTimer) return;
+        const delay = (typeof delayMs === 'number') ? delayMs : this.scanDelay;
         this.scanTimer = setTimeout(() => {
             this.scanTimer = null;
             this.scanVisibleTextNodes();
-        }, this.scanDelay);
+        }, delay);
     }
 
     scanVisibleTextNodes() {
@@ -309,12 +384,15 @@ class VisibleTextProcessor {
             return;
         }
 
+        this.scanSequence++;
         const textNodes = getTextNodes(document.body);
         let added = 0;
 
         for (const node of textNodes) {
             if (this.pending.length >= this.maxPending) break;
             if (this.processedNodes.has(node) || this.queuedNodes.has(node)) continue;
+            // ループ検出で除外された親要素配下は再処理しない
+            if (node.parentElement && this.blockedElements.has(node.parentElement)) continue;
 
             const text = node.nodeValue || '';
             if (!containsKanji(text)) continue;
@@ -366,12 +444,18 @@ class VisibleTextProcessor {
                         this.queuedNodes.delete(node);
                         continue;
                     }
+                    // キュー投入後にループ検出された親要素配下はスキップ
+                    if (this.blockedElements.has(node.parentElement)) {
+                        this.queuedNodes.delete(node);
+                        continue;
+                    }
                     const text = node.nodeValue;
                     if (!containsKanji(text)) {
                         this.queuedNodes.delete(node);
                         continue;
                     }
-                    batch.push({ node, text });
+                    // 親要素はDOM置換後に辿れなくなるため、ループガード用にここで保持
+                    batch.push({ node, text, parent: node.parentElement });
                 }
 
                 if (batch.length === 0) continue;
@@ -385,7 +469,7 @@ class VisibleTextProcessor {
 
                 // 各ノードにトークンを適用（DOM操作のみ、通信なし）
                 for (let i = 0; i < batch.length; i++) {
-                    const { node, text } = batch[i];
+                    const { node, text, parent } = batch[i];
                     const result = batchResults ? batchResults[i] : null;
                     const tokens = result ? result.tokens : null;
                     const dictSource = result ? result.dictSource : null;
@@ -393,6 +477,7 @@ class VisibleTextProcessor {
                     this.queuedNodes.delete(node);
                     if (ok) {
                         this.processedNodes.add(node);
+                        if (parent) this.recordElementProcess(parent);
                     }
                     // 失敗時は processedNodes に入れない → 次のスキャンで再取得
                 }
