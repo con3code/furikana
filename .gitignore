@@ -12,6 +12,9 @@ node_modules/
 # Chrome 版ビルド出力
 dist/
 
+# 非公開ドキュメント（コミット禁止）
+docs/private/
+
 # macOS
 .DS_Store
 *.swp
