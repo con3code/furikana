@@ -27,13 +27,37 @@ function katakanaToHiragana(str) {
 // ReadingRules は reading-rules.js で定義（manifest.json で先にロード）
 
 // 接続エラー（background.js停止）かどうかを判定
+// 一時的なエラーのみ。回復不能な context invalidated は isContextInvalidated で別扱い
 function isConnectionError(error) {
     if (!error) return false;
     const msg = (error.message || error.toString()).toLowerCase();
     return msg.includes('could not establish connection')
         || msg.includes('receiving end does not exist')
-        || msg.includes('extension context invalidated')
         || msg.includes('message port closed');
+}
+
+// 拡張のリロード/更新で content script が孤児化した状態かどうかを判定
+// （Chrome でよく発生。browser.runtime が恒久的に無効になり、リトライしても回復しない）
+function isContextInvalidated(error) {
+    if (!error) return false;
+    const msg = (error.message || error.toString()).toLowerCase();
+    return msg.includes('extension context invalidated');
+}
+
+// 孤児化した content script の活動を完全停止する（1回だけ実行）
+// ページを再読み込みすれば新しい拡張の content script が動き出す
+let furikanaContextInvalidated = false;
+
+function handleContextInvalidated() {
+    if (furikanaContextInvalidated) return;
+    furikanaContextInvalidated = true;
+    console.warn('[Furikana] Extension context invalidated: 拡張が更新/リロードされたため、このタブでの処理を停止します。ページを再読み込みすると再開します。');
+    try {
+        if (visibleProcessor) {
+            visibleProcessor.stop();
+            visibleProcessor = null;
+        }
+    } catch (_) {}
 }
 
 // リクエストキューイングシステム
@@ -60,6 +84,9 @@ class RequestQueue {
 
     // リクエストをキューに追加
     async enqueue(fn) {
+        // 孤児化した拡張コンテキストでは何もしない
+        if (furikanaContextInvalidated) return null;
+
         // クールダウン中はスキップ
         if (this.cooldownUntil > 0) {
             if (Date.now() < this.cooldownUntil) {
@@ -109,7 +136,13 @@ class RequestQueue {
 
             resolve(result);
         } catch (error) {
-            if (isConnectionError(error)) {
+            if (isContextInvalidated(error)) {
+                // 拡張がリロードされ復旧不能 → リトライせず完全停止
+                this.queue.forEach(item => item.resolve(null));
+                this.queue = [];
+                handleContextInvalidated();
+                resolve(null);
+            } else if (isConnectionError(error)) {
                 // 接続エラー: background.js が停止中 → クールダウンカウントに入れない
                 console.warn('[Furikana] Connection error (background.js may be stopped):', error.message);
 
@@ -123,6 +156,7 @@ class RequestQueue {
                     // 2秒待ってから再スキャンをトリガー（background.js再起動の猶予）
                     setTimeout(() => {
                         this.connectionRetrying = false;
+                        if (furikanaContextInvalidated) return;
                         console.log('[Furikana] Retrying after connection error wait');
                         if (visibleProcessor && visibleProcessor.running) {
                             visibleProcessor.scheduleScan();
@@ -1355,6 +1389,11 @@ async function sendBatchTokenize(texts, retry = 0) {
             throw new Error('Batch tokenize unsuccessful');
         });
     } catch (error) {
+        // 拡張リロードによる孤児化 → リトライ無意味、完全停止
+        if (isContextInvalidated(error)) {
+            handleContextInvalidated();
+            return null;
+        }
         // 接続エラーかつリトライ未実施 → 2秒待ってから1回リトライ
         if (isConnectionError(error) && retry < 1) {
             console.warn('[Furikana] Connection error in sendBatchTokenize, retrying in 2s...', error.message);
@@ -1586,8 +1625,12 @@ async function toggleFurigana() {
         furikanaEnabled = true;
     }
 
-    // ツールバーアイコンを更新
-    browser.runtime.sendMessage({ action: 'updateIcon', enabled: furikanaEnabled }).catch(() => {});
+    // ツールバーアイコンを更新（孤児化後の sendMessage は同期 throw になる）
+    try {
+        browser.runtime.sendMessage({ action: 'updateIcon', enabled: furikanaEnabled }).catch(() => {});
+    } catch (e) {
+        if (isContextInvalidated(e)) handleContextInvalidated();
+    }
 
     return furikanaEnabled;
 }
@@ -1611,9 +1654,14 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // ページが再表示された時に App Group から設定を同期
+// （孤児化後の sendMessage は同期 throw になるため try/catch も必要）
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-        browser.runtime.sendMessage({ action: 'syncAppGroup' }).catch(() => {});
+    if (document.visibilityState === 'visible' && !furikanaContextInvalidated) {
+        try {
+            browser.runtime.sendMessage({ action: 'syncAppGroup' }).catch(() => {});
+        } catch (e) {
+            if (isContextInvalidated(e)) handleContextInvalidated();
+        }
     }
 });
 
