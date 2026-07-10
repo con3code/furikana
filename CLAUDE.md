@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Furikana is an iOS Safari Web Extension that adds furigana (reading annotations) to Japanese kanji on web pages.
+Furikana is a browser extension that adds furigana (reading annotations) to Japanese kanji on web pages. **Safari（iOS）版と Chrome 版の2プラットフォーム**があり、`furikana Extension/Resources/` を共有ソースの正として、Chrome 版は `scripts/build-chrome.js` が `dist/chrome/` に組み立てる（詳細は `docs/safari-development.md` / `docs/chrome-development.md`）。
 
 **製品名は「るびポン」(RubiPon)**（旧称 FuriFuri — App Store で名前衝突のため改名）。表示名（CFBundleDisplayName、_locales の extension_name、LaunchScreen、Main.html）とターゲット/スキーム/プロジェクト名・生成物名（`RubiPon.app` / `RubiPon Extension.appex`）は RubiPon に変更済み。**bundle ID `con3.furikana` と AppGroup `group.con3.furikana` は据え置き** — 変更すると証明書・AppGroupデータ・native messaging が壊れるため、今後も変更しないこと。 Two tokenization backends are available: native Swift (NLTagger + CFStringTokenizer) and kuromoji.js (IPA dictionary). Readings are rendered as HTML `<ruby>` tags with okurigana separation.
 
@@ -13,16 +13,33 @@ Two display modes: **通常モード** (Safari native ruby — rt above kanji) a
 ## Build
 
 ```bash
+# Safari版
 xcodebuild -scheme RubiPon build -destination 'generic/platform=iOS'
+
+# Chrome版（dist/chrome/ に組み立て。--zip でストア用zip、--no-sudachi で軽量ビルド）
+npm run build:chrome
 ```
 
 Two targets: `RubiPon` (iOS host app) and `RubiPon Extension` (Safari web extension). Building the scheme builds both. No test suite or linter is configured. Xcode project is `RubiPon.xcodeproj`.
 
 `furikana Extension/Resources/` uses PBXFileSystemSynchronizedRootGroup — files added to this directory are automatically picked up by Xcode without pbxproj edits.
 
+### プラットフォーム構成（Safari / Chrome）
+
+- **`furikana Extension/Resources/` が共有ソースの正**。Chrome 版のためにファイルを動かさないこと（Xcode の synchronized group が壊れる）。`dist/chrome/` はビルド出力なので編集禁止。
+- Chrome 固有の挙動は共有コード内の実行時分岐で扱う: `FK_IS_CHROMIUM = /Chrome\//.test(navigator.userAgent)`（Safari・ホストアプリWKWebViewでは偽）。ネイティブメッセージング（AppGroup同期・os_log・辞書チャンク読み込み）は `FK_HAS_NATIVE` でガード。
+- **api-shim.js** — 全コンテキストの先頭でロード。Chrome に `browser = chrome` を提供（Safariでは no-op）。popup.html / options.html からも読み込まれる。
+- **辞書ロードの分岐**: Safari は background から fetch で拡張リソースを読めないため sendNativeMessage → Swift チャンク読み込み。Chrome は `fetch()` 直読み（kuromoji.js `_loadViaFetch`、ext-helper.js `_loadDictViaFetch`）。
+- **dictType 'system' は Safari 専用**。Chrome では `fkNormalizeDictType()` が 'ipadic' に正規化し、options.js が選択肢を非表示にする。Chrome の既定 dictType は 'ipadic'。
+- **ユーザー辞書TSV原文**: Safari は AppGroup、Chrome は `storage.local` の `userDictTSV` キーに永続化。
+- **ツールバーアイコン**: Chrome は setIcon の SVG 非対応のため PNG に切り替え（background.js / popup.js）。
+- **`chrome/`** — Chrome 専用ファイル: `manifest.json`（MV3 service_worker）と `sw.js`（importScripts ローダー。順序は Safari の background scripts 配列と同一: api-shim → kuromoji → ext-helper → sudachi-bundle → background）。
+
 ### Manifest
 
-Manifest V3 (`manifest_version: 3`, requires Safari 15.4+ / iOS 15.4+). Background scripts: `["kuromoji.js", "ext-helper.js", "sudachi-bundle.js", "background.js"]` with `persistent: false`（順序重要 — ext-helper.js と sudachi-bundle.js は background.js より先にロード）. Content scripts load `reading-rules.js` before `content.js` (order matters — ReadingRules IIFE must be defined first). Localized with `_locales/en/` and `_locales/ja/`.
+**Safari** (`furikana Extension/Resources/manifest.json`): Manifest V3 (`manifest_version: 3`, requires Safari 15.4+ / iOS 15.4+). Background scripts: `["kuromoji.js", "ext-helper.js", "sudachi-bundle.js", "background.js"]` with `persistent: false`（順序重要 — ext-helper.js と sudachi-bundle.js は background.js より先にロード）. Content scripts load `reading-rules.js` before `content.js` (order matters — ReadingRules IIFE must be defined first). Localized with `_locales/en/` and `_locales/ja/`.
+
+**Chrome** (`chrome/manifest.json`): MV3 `service_worker: "sw.js"`。content scripts は `["api-shim.js", "reading-rules.js", "content.js"]`。`nativeMessaging` 権限なし。CSP に `'wasm-unsafe-eval'`（Sudachi WASM 用）。
 
 ## Architecture
 
@@ -80,6 +97,9 @@ Host app and extension share data via AppGroup (`group.con3.furikana`). `ViewCon
 - **`furikana Extension/Resources/options.js`** / **`options.html`** / **`options.css`** — Settings page (dict type, reading type, unit type, ruby styling sliders, auto-enable, reverse ruby, reading rules toggle, user dictionary). Includes live preview of ruby styling. ホストアプリのWKWebViewでも表示される（browser.i18n 非対応環境ではHTMLの日本語がフォールバック）。
 - **popup.css / options.css** — `@media (prefers-color-scheme: dark)` でダークモード対応（`color-scheme: light dark` 宣言済み）。
 - **`furikana/ViewController.swift`** — Host app WKWebView controller. Injects `browser.storage.local` polyfill and back-button script. Bridges settings between web UI and UserDefaults via AppGroup.
+- **`furikana Extension/Resources/api-shim.js`** — プラットフォーム吸収シム。Chrome に `browser = chrome` を提供（Safari では no-op）。Chrome では全コンテキストの先頭、Safari では popup.html / options.html からロード。
+- **`chrome/manifest.json`** / **`chrome/sw.js`** — Chrome 専用。MV3 service worker エントリ（sw.js が importScripts で共有スクリプトを Safari と同順にロード）。
+- **`scripts/build-chrome.js`** — Chrome 版ビルド。共有リソース + chrome/ を `dist/chrome/` に組み立てる（`npm run build:chrome`、`--zip` / `--no-sudachi` オプション）。
 
 ### Ruby Display Modes
 
@@ -129,7 +149,7 @@ Rules have priority (higher = runs first). Regex rules support `$1`/`$2` capture
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `dictType` | `'system'`\|`'ipadic'`\|`'sudachi'` | `'system'` | Tokenization backend |
+| `dictType` | `'system'`\|`'ipadic'`\|`'sudachi'` | `'system'`（Chrome: `'ipadic'`） | Tokenization backend（`'system'` は Safari 専用） |
 | `readingType` | `'hiragana'`\|`'romaji'` | `'hiragana'` | Ruby display format |
 | `unitType` | `'long'`\|`'short'` | `'long'` | Token merging granularity |
 | `autoEnable` | bool | `false` | Auto-apply on page load |
@@ -187,6 +207,7 @@ JS ファイルの構文チェック: `node -c "furikana Extension/Resources/con
 - content.js / background.js: Safari → 開発 → 対象ページの Web インスペクタ
 - background.js のみ: Safari → 開発 → Web Extension Background Content
 - Swift ログ: Xcode コンソール（`os_log`）
+- Chrome 版: `chrome://extensions` → るびポンのカード → 「Service Worker」リンク（background）、対象ページの DevTools（content.js）
 
 ## Language
 
