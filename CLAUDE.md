@@ -190,6 +190,8 @@ Use logical properties (`inset-block-start`, `margin-block-end`, `min-block-size
 - **NLTagger + 改行テキスト**: NLTagger は改行文字で始まるテキストに対して空のトークン配列を返す。`processQueue` でテキストをトリムしてからトークン化し、`leadingWhitespace` オフセットをトークンの `range` に加算して補正する。
 - **rubyCount === 0 のDOM置換スキップ**: `applyTokensToNode` でルビが1つも生成されなかった場合（漢字なし）、DOM置換を行わずそのまま `true` を返す。置換すると新テキストノードが `processedNodes` に未登録のまま残り、次のスキャンで再検出されて無限ループになる。
 - **userDictRules のAppGroup同期除外**: `allPartitions` 展開後のデータが巨大になるため、`userDictRules` は AppGroup の `syncSettings` / `forceSyncToAppGroup` から `delete` して除外。TSV原文は別途 `saveUserDict` アクションで AppGroup に保存。
+- **WKWebView 表示ページの font-family は日本語フォント先頭**: iOSシミュレーターのアプリ内 WKWebView は `-apple-system` / `system-ui` 経由の CJK フォールバックが壊れて日本語が豆腐になる（実機・Safariは正常）。Style.css / licenses.html / options.css / popup.css は `"Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, ...` の順を維持すること。
+- **xcodebuild の `-derivedDataPath` を Dropbox 配下にしない**: Dropbox が生成物に拡張属性を付けて CodeSign が detritus エラーで失敗する。デフォルト（~/Library/...）か Dropbox 外を使う。
 
 ## Build Notes
 

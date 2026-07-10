@@ -54,6 +54,20 @@ npm run build:sudachi
 - **Swift（SafariWebExtensionHandler）**: Xcode コンソール（`os_log`）。
   JS からは `nativeLog()` で os_log に中継される（Console.app でも確認可能）
 
+### シミュレーターでの既知問題
+
+- **システムフォント経由の日本語が豆腐になる**: iOSシミュレーター（iOS 26.3 で確認）の
+  アプリ内 WKWebView では、`-apple-system` / `system-ui` / `font: -apple-system-short-body`
+  で日本語が「?」ボックスになる（CJKフォールバック不全。実機・Safariアプリ・
+  拡張ページは正常）。対策として WKWebView で表示する CSS（Style.css / licenses.html /
+  options.css / popup.css）は **日本語フォント（Hiragino Sans）をスタック先頭**に
+  置いてある。新しく CSS を書くときも同じ規約に従うこと。
+- **`-derivedDataPath` を Dropbox 配下にしない**: リポジトリが Dropbox 内にあるため、
+  ビルド生成物を Dropbox 配下（例: `build/DerivedData`）に出すと Dropbox が拡張属性
+  （com.dropbox.attrs 等）を付与し、CodeSign が「resource fork, Finder information,
+  or similar detritus not allowed」で失敗する。デフォルトの DerivedData
+  （`~/Library/Developer/Xcode/DerivedData`）か Dropbox 外のパスを使うこと。
+
 ### Safari 固有の制約（コード変更時に必ず意識する）
 
 - 拡張の background から fetch/XHR で拡張リソースを読めない
