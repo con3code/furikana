@@ -14,6 +14,7 @@ Safari（iOS）版と Chrome 版がある。
 | [docs/safari-development.md](docs/safari-development.md) | Safari 版（iOS）の開発・ビルド・App Store リリース |
 | [docs/chrome-development.md](docs/chrome-development.md) | Chrome 版の開発・ビルド・Chrome Web Store リリース |
 | [docs/tokenization-architecture.md](docs/tokenization-architecture.md) | トークン化パイプラインの詳細 |
+| [docs/reading-rules-manual.md](docs/reading-rules-manual.md) | 読み補正ルールの仕組みと記述マニュアル |
 | [CLAUDE.md](CLAUDE.md) | コードベース全体のリファレンス（アーキテクチャ・制約・設定一覧） |
 
 ## クイックスタート

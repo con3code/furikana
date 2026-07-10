@@ -131,7 +131,7 @@ Defined in `reading-rules.js` as a JS IIFE (content.js から分離済み、mani
 2. **Surface rules** — Exact match: `"何を"` → `"なにを"`
 3. **Regex rules** — Pattern + context: date expressions (`1月`, `15日`), 泊/分の連濁（末尾桁で ぱく/はく, ぷん/ふん を判定）, split-token variants for kuromoji
 
-Rules have priority (higher = runs first). Regex rules support `$1`/`$2` capture groups and context constraints (`prevPattern`, `prevPrevPattern`, `nextPattern`). See `ReadingRules.md` for the full guide.
+Rules have priority (higher = runs first). Regex rules support `$1`/`$2` capture groups and context constraints (`prevPattern`, `prevPrevPattern`, `nextPattern`). ルール記述の完全なマニュアルは `docs/reading-rules-manual.md`（内部の仕組み・記述手順・実例・落とし穴・Node検証ハーネス）。
 
 **Performance optimizations**:
 - Sort caching: `sequenceRules`, `surfaceRules`, `regexRules` は IIFE 初期化時にソート済み配列をキャッシュ（`apply()` 毎のソートを排除）
