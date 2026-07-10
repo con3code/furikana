@@ -26,6 +26,22 @@ function katakanaToHiragana(str) {
 
 // ReadingRules は reading-rules.js で定義（manifest.json で先にロード）
 
+// トークン化用にテキストの先頭・末尾空白を除去する
+// NLTagger（dictType=system）は改行で始まるテキストに対して空のトークン配列を返すため
+// （新聞サイト等のサーバー生成HTMLは "\n\t\t\t　本文…" の形が多く、本文全体が振られなくなる）、
+// トリムしてから送信し、返ってきたトークンの range に先頭空白分のオフセットを加算して補正する
+function prepareTextForTokenize(text) {
+    const m = text.match(/^\s+/);
+    const leading = m ? m[0].length : 0;
+    return { sendText: text.slice(leading).replace(/\s+$/, ''), leading };
+}
+
+// トークンの range を先頭空白分ずらして元テキストの位置に合わせる
+function offsetTokenRanges(tokens, leading) {
+    if (!tokens || leading === 0) return tokens;
+    return tokens.map(t => Object.assign({}, t, { range: [t.range[0] + leading, t.range[1] + leading] }));
+}
+
 // 接続エラー（background.js停止）かどうかを判定
 // 一時的なエラーのみ。回復不能な context invalidated は isContextInvalidated で別扱い
 function isConnectionError(error) {
@@ -488,8 +504,10 @@ class VisibleTextProcessor {
                         this.queuedNodes.delete(node);
                         continue;
                     }
+                    // 先頭・末尾空白をトリム（NLTagger の改行先頭対策。range は適用時に補正）
+                    const { sendText, leading } = prepareTextForTokenize(text);
                     // 親要素はDOM置換後に辿れなくなるため、ループガード用にここで保持
-                    batch.push({ node, text, parent: node.parentElement });
+                    batch.push({ node, text, sendText, leading, parent: node.parentElement });
                 }
 
                 if (batch.length === 0) continue;
@@ -498,14 +516,14 @@ class VisibleTextProcessor {
                 const gen = furikanaGeneration;
                 let batchResults = null;
                 if (!requestQueue.isFallbackMode()) {
-                    batchResults = await sendBatchTokenize(batch.map(b => b.text));
+                    batchResults = await sendBatchTokenize(batch.map(b => b.sendText));
                 }
 
                 // 各ノードにトークンを適用（DOM操作のみ、通信なし）
                 for (let i = 0; i < batch.length; i++) {
-                    const { node, text, parent } = batch[i];
+                    const { node, text, leading, parent } = batch[i];
                     const result = batchResults ? batchResults[i] : null;
-                    const tokens = result ? result.tokens : null;
+                    const tokens = result ? offsetTokenRanges(result.tokens, leading) : null;
                     const dictSource = result ? result.dictSource : null;
                     const ok = applyTokensToNode(node, text, tokens, dictSource, gen);
                     this.queuedNodes.delete(node);
@@ -1583,9 +1601,11 @@ async function addFuriganaToNode(textNode) {
 
     if (!requestQueue.isFallbackMode()) {
         try {
-            const response = await sendNativeMessage('tokenize', { text });
+            // 先頭・末尾空白をトリムして送信し、range を補正（NLTagger の改行先頭対策）
+            const { sendText, leading } = prepareTextForTokenize(text);
+            const response = await sendNativeMessage('tokenize', { text: sendText });
             if (response && response.success && response.tokens) {
-                tokens = response.tokens;
+                tokens = offsetTokenRanges(response.tokens, leading);
                 dictSource = response.dictSource || 'system';
             }
         } catch (err) {
