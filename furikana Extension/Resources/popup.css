@@ -127,6 +127,12 @@ h1 {
     accent-color: #007aff;
 }
 
+/* チェックボックス付きラベルはチェックボックスとテキストを垂直中央に揃える */
+.quick-setting-item label:has(input[type="checkbox"]) {
+    display: flex;
+    align-items: center;
+}
+
 /* ダークモード */
 @media (prefers-color-scheme: dark) {
     body {
