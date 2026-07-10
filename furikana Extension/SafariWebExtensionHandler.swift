@@ -326,8 +326,42 @@ class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
     }
 
     // テキストをトークン化
-    // 3段階処理: NLTagger→CFStringTokenizer→マッチング
+    // NLTagger はテキスト途中の改行以降のトークンを一切返さない（改行で列挙が停止する）ため、
+    // 改行で行に分割して各行を個別にトークン化し、UTF-16 オフセットを補正して結合する。
+    // （Yahoo!ニュース等は複数段落を改行区切りで1つのテキストノードに含めるため、
+    //   分割しないと最初の段落以降にふりがなが振られない）
     private func tokenizeText(_ text: String) -> [TokenInfo] {
+        // 改行を含まない場合は分割不要（最頻パス）
+        if text.rangeOfCharacter(from: .newlines) == nil {
+            return tokenizeSegment(text)
+        }
+
+        var all: [TokenInfo] = []
+        text.enumerateSubstrings(in: text.startIndex..<text.endIndex,
+                                 options: .byLines) { substring, range, _, _ in
+            guard let line = substring, !line.isEmpty else { return }
+            // 空白のみの行はスキップ
+            if line.trimmingCharacters(in: .whitespaces).isEmpty { return }
+            // 行頭の UTF-16 オフセット（JS の文字列インデックスに一致させる）
+            let offset16 = text[text.startIndex..<range.lowerBound].utf16.count
+            autoreleasepool {
+                let tokens = self.tokenizeSegment(line)
+                for t in tokens {
+                    all.append(TokenInfo(
+                        surface: t.surface,
+                        reading: t.reading,
+                        pos: t.pos,
+                        range: [t.range[0] + offset16, t.range[1] + offset16]
+                    ))
+                }
+            }
+        }
+        return all
+    }
+
+    // 1セグメント（改行を含まないテキスト）をトークン化
+    // 3段階処理: NLTagger→CFStringTokenizer→マッチング
+    private func tokenizeSegment(_ text: String) -> [TokenInfo] {
         // === Phase 1: NLTaggerですべてのトークンを収集（品詞+範囲のみ）===
         struct RawToken {
             let surface: String

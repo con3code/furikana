@@ -1,5 +1,9 @@
 // ポップアップのメインスクリプト
 
+// Chrome は action.setIcon の SVG 非対応のため PNG を使う
+const FK_IS_CHROMIUM = typeof navigator !== 'undefined' && /Chrome\//.test(navigator.userAgent || '');
+const FK_ICON_EXT = FK_IS_CHROMIUM ? 'png' : 'svg';
+
 let isEnabled = false;
 
 // i18n メッセージ取得（未定義キーや i18n 非対応環境ではフォールバックを返す）
@@ -38,6 +42,61 @@ async function getCurrentTab() {
     return tabs[0];
 }
 
+// --- サイト別表示スタイルの記憶 ---
+// スライダー操作時に、アクティブタブのホスト名単位で6値のスナップショットを保存する。
+// 上限100件、超過時は最終更新が古いものから削除（LRU）。
+const SITE_STYLE_KEYS = ['rubySize', 'rubyGap', 'rubyLineHeight', 'rubyMinHeight', 'rubyBoxPadding', 'rubyBoxMargin'];
+const SITE_STYLE_DEFAULTS = { rubySize: 50, rubyGap: 1, rubyLineHeight: 1.3, rubyMinHeight: 12, rubyBoxPadding: 0.15, rubyBoxMargin: 0 };
+const SITE_STYLE_LIMIT = 100;
+let activeSiteHost = null; // ポップアップを開いた時点のアクティブタブのホスト名
+
+async function resolveActiveSiteHost() {
+    try {
+        const tab = await getCurrentTab();
+        if (!tab || !tab.url) return null;
+        const url = new URL(tab.url);
+        if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+        return url.hostname || null;
+    } catch (_) {
+        return null;
+    }
+}
+
+// 現在の6値スナップショットをアクティブタブのホストに記憶する
+// partial: 今回変更された値（それ以外は既存のサイト記憶 → グローバル値の順で補完）
+async function saveSiteStyleSnapshot(partial) {
+    if (!activeSiteHost) return;
+    try {
+        const stored = await browser.storage.local.get(
+            Object.assign({ siteStyleOverrides: {} }, SITE_STYLE_DEFAULTS)
+        );
+        const overrides = stored.siteStyleOverrides || {};
+        const prev = (overrides[activeSiteHost] && overrides[activeSiteHost].v) || {};
+        const v = {};
+        for (const key of SITE_STYLE_KEYS) {
+            // 補完順: 今回の変更 → 既存のサイト記憶 → 初期値（optionsで編集されたグローバル値）
+            // （記憶のないサイトは初期値で表示されているため、それをそのまま記憶する）
+            v[key] = (partial[key] !== undefined) ? partial[key]
+                   : (prev[key] !== undefined) ? prev[key]
+                   : stored[key];
+        }
+        overrides[activeSiteHost] = { v: v, t: Date.now() };
+
+        // 上限超過: 最終更新が古いホストから削除
+        const hosts = Object.keys(overrides);
+        if (hosts.length > SITE_STYLE_LIMIT) {
+            hosts.sort((a, b) => ((overrides[a] && overrides[a].t) || 0) - ((overrides[b] && overrides[b].t) || 0));
+            for (let i = 0; i < hosts.length - SITE_STYLE_LIMIT; i++) {
+                delete overrides[hosts[i]];
+            }
+        }
+
+        await browser.storage.local.set({ siteStyleOverrides: overrides });
+    } catch (e) {
+        console.warn('[Furikana] Site style save failed:', e);
+    }
+}
+
 // ふりがなのトグル
 async function toggleFurigana() {
     const tab = await getCurrentTab();
@@ -61,7 +120,7 @@ async function toggleFurigana() {
             // ツールバーアイコンを更新
             browser.action.setIcon({
                 tabId: tab.id,
-                path: isEnabled ? 'images/toolbar-icon_on.svg' : 'images/toolbar-icon_off.svg'
+                path: isEnabled ? `images/toolbar-icon_on.${FK_ICON_EXT}` : `images/toolbar-icon_off.${FK_ICON_EXT}`
             }).catch(() => {});
             updateStatus(
                 isEnabled
@@ -219,9 +278,9 @@ async function onRubySizeInput() {
     document.getElementById('popup-ruby-size-value').textContent = val;
 
     if (rubySizeSaveTimer) clearTimeout(rubySizeSaveTimer);
-    rubySizeSaveTimer = setTimeout(async () => {
+    rubySizeSaveTimer = setTimeout(() => {
         rubySizeSaveTimer = null;
-        await browser.storage.local.set({ rubySize: val });
+        saveSiteStyleSnapshot({ rubySize: val });
     }, 150);
 }
 
@@ -232,9 +291,22 @@ async function onRubyGapInput() {
     document.getElementById('popup-ruby-gap-value').textContent = val;
 
     if (rubyGapSaveTimer) clearTimeout(rubyGapSaveTimer);
-    rubyGapSaveTimer = setTimeout(async () => {
+    rubyGapSaveTimer = setTimeout(() => {
         rubyGapSaveTimer = null;
-        await browser.storage.local.set({ rubyGap: val });
+        saveSiteStyleSnapshot({ rubyGap: val });
+    }, 150);
+}
+
+// 行の高さをストレージに保存
+let lineHeightSaveTimer = null;
+async function onLineHeightInput() {
+    const val = parseFloat(document.getElementById('popup-line-height').value);
+    document.getElementById('popup-line-height-value').textContent = val.toFixed(2);
+
+    if (lineHeightSaveTimer) clearTimeout(lineHeightSaveTimer);
+    lineHeightSaveTimer = setTimeout(() => {
+        lineHeightSaveTimer = null;
+        saveSiteStyleSnapshot({ rubyLineHeight: val });
     }, 150);
 }
 
@@ -242,17 +314,25 @@ async function onRubyGapInput() {
 // （スライダー操作直後にポップアップが閉じると setTimeout が発火せず値が失われるため、
 //   change イベント＝ドラッグ確定時と pagehide で必ずフラッシュする）
 function flushPendingSaves() {
+    const pending = {};
     if (rubySizeSaveTimer) {
         clearTimeout(rubySizeSaveTimer);
         rubySizeSaveTimer = null;
-        const val = parseInt(document.getElementById('popup-ruby-size').value, 10);
-        browser.storage.local.set({ rubySize: val }).catch(() => {});
+        pending.rubySize = parseInt(document.getElementById('popup-ruby-size').value, 10);
     }
     if (rubyGapSaveTimer) {
         clearTimeout(rubyGapSaveTimer);
         rubyGapSaveTimer = null;
-        const val = parseInt(document.getElementById('popup-ruby-gap').value, 10);
-        browser.storage.local.set({ rubyGap: val }).catch(() => {});
+        pending.rubyGap = parseInt(document.getElementById('popup-ruby-gap').value, 10);
+    }
+    if (lineHeightSaveTimer) {
+        clearTimeout(lineHeightSaveTimer);
+        lineHeightSaveTimer = null;
+        pending.rubyLineHeight = parseFloat(document.getElementById('popup-line-height').value);
+    }
+    if (Object.keys(pending).length > 0) {
+        // popup のスライダーはサイト記憶のみを書く（グローバル6値=初期値には触れない）
+        saveSiteStyleSnapshot(pending);
     }
 }
 
@@ -278,11 +358,25 @@ async function loadPopupSettings() {
     try {
         await browser.runtime.sendMessage({ action: 'syncAppGroup' });
     } catch (e) { /* 同期失敗時はスキップ */ }
-    const s = await browser.storage.local.get({ rubySize: 50, rubyGap: 1, autoEnable: false, reverseRuby: false });
+    const s = await browser.storage.local.get(
+        Object.assign({ autoEnable: false, reverseRuby: false, siteStyleOverrides: null }, SITE_STYLE_DEFAULTS)
+    );
+
+    // スライダー初期値: サイト別記憶があればその値、なければ初期値（optionsで編集されたグローバル値）
+    // （ページ表示と同じ決まり方）
+    activeSiteHost = await resolveActiveSiteHost();
+    const siteEntry = activeSiteHost && s.siteStyleOverrides && s.siteStyleOverrides[activeSiteHost];
+    const sv = (siteEntry && siteEntry.v) || {};
+    s.rubySize = (sv.rubySize !== undefined) ? sv.rubySize : s.rubySize;
+    s.rubyGap = (sv.rubyGap !== undefined) ? sv.rubyGap : s.rubyGap;
+    s.rubyLineHeight = (sv.rubyLineHeight !== undefined) ? sv.rubyLineHeight : s.rubyLineHeight;
+
     document.getElementById('popup-ruby-size').value = s.rubySize;
     document.getElementById('popup-ruby-size-value').textContent = s.rubySize;
     document.getElementById('popup-ruby-gap').value = s.rubyGap;
     document.getElementById('popup-ruby-gap-value').textContent = s.rubyGap;
+    document.getElementById('popup-line-height').value = s.rubyLineHeight;
+    document.getElementById('popup-line-height-value').textContent = parseFloat(s.rubyLineHeight).toFixed(2);
     document.getElementById('popup-reverse-ruby').checked = s.reverseRuby;
     document.getElementById('popup-auto-enable').checked = s.autoEnable;
 }
@@ -307,6 +401,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const rubyGapSlider = document.getElementById('popup-ruby-gap');
     rubyGapSlider.addEventListener('input', onRubyGapInput);
     rubyGapSlider.addEventListener('change', flushPendingSaves);
+
+    // 行の高さスライダー
+    const lineHeightSlider = document.getElementById('popup-line-height');
+    lineHeightSlider.addEventListener('input', onLineHeightInput);
+    lineHeightSlider.addEventListener('change', flushPendingSaves);
 
     // ポップアップが閉じる直前に未保存の値をフラッシュ
     window.addEventListener('pagehide', flushPendingSaves);

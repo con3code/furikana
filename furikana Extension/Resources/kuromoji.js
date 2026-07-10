@@ -8117,8 +8117,10 @@ BrowserDictionaryLoader.prototype = Object.create(DictionaryLoader.prototype);
 // sendNativeMessage → Swift で辞書ファイルを 256KB チャンクに分割して読み込む。
 // background context では sendNativeMessage を直接呼び、
 // content script では sendMessage → background.js 経由で中継する。
+// Chrome（Chromium系）では拡張リソースを fetch で直接読めるため fetch 経路を使う。
 
 var _isBackgroundContext = (location.protocol === 'safari-web-extension:');
+var _isChromiumContext = typeof navigator !== 'undefined' && /Chrome\//.test(navigator.userAgent || '');
 
 function _sendDictRequest(msg) {
     if (_isBackgroundContext) {
@@ -8177,7 +8179,31 @@ function _loadViaBackground(filename, callback) {
     loadChunk(0);
 }
 
+// Chrome用: fetch で gzip 辞書ファイルを直接読み込んで展開する
+// （dic_path と filename の結合は path.join が URL の "//" を潰すため、
+//   ファイル名だけ取り出して runtime.getURL で正しい URL を組み立て直す）
+function _loadViaFetch(rawUrl, callback) {
+    var filename = rawUrl.split("/").pop();
+    var url = browser.runtime.getURL("dict/" + filename);
+    fetch(url).then(function (response) {
+        if (!response.ok) throw new Error("HTTP " + response.status + ": " + url);
+        return response.arrayBuffer();
+    }).then(function (buffer) {
+        var gz = new zlib.Zlib.Gunzip(new Uint8Array(buffer));
+        var typed_array = gz.decompress();
+        console.log("[Furikana] Dict file fetched & decompressed:", url, "size:", typed_array.buffer.byteLength);
+        callback(null, typed_array.buffer);
+    }).catch(function (e) {
+        console.error("[Furikana] Dict fetch error:", url, e);
+        callback(e, null);
+    });
+}
+
 BrowserDictionaryLoader.prototype.loadArrayBuffer = function (url, callback) {
+    if (_isChromiumContext) {
+        _loadViaFetch(url, callback);
+        return;
+    }
     var filename = url.split("/").pop();
     console.log("[Furikana] Loading dict file:", filename);
     _loadViaBackground(filename, callback);

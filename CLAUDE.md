@@ -4,25 +4,42 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Furikana is an iOS Safari Web Extension that adds furigana (reading annotations) to Japanese kanji on web pages.
+Furikana is a browser extension that adds furigana (reading annotations) to Japanese kanji on web pages. **Safari（iOS）版と Chrome 版の2プラットフォーム**があり、`furikana Extension/Resources/` を共有ソースの正として、Chrome 版は `scripts/build-chrome.js` が `dist/chrome/` に組み立てる（詳細は `docs/safari-development.md` / `docs/chrome-development.md`）。
 
 **製品名は「るびポン」(RubiPon)**（旧称 FuriFuri — App Store で名前衝突のため改名）。表示名（CFBundleDisplayName、_locales の extension_name、LaunchScreen、Main.html）とターゲット/スキーム/プロジェクト名・生成物名（`RubiPon.app` / `RubiPon Extension.appex`）は RubiPon に変更済み。**bundle ID `con3.furikana` と AppGroup `group.con3.furikana` は据え置き** — 変更すると証明書・AppGroupデータ・native messaging が壊れるため、今後も変更しないこと。 Two tokenization backends are available: native Swift (NLTagger + CFStringTokenizer) and kuromoji.js (IPA dictionary). Readings are rendered as HTML `<ruby>` tags with okurigana separation.
 
-Two display modes: **通常モード** (Safari native ruby — rt above kanji) and **ひらがなメインモード** (`reverseRuby` — small kanji above, full-size hiragana below via `display: block` + `position: absolute` on rt).
+Two display modes: **通常モード** (Safari native ruby — rt above kanji) and **ひらがなメインモード** (`reverseRuby` — small kanji above, full-size hiragana below; rt はフロー内の `display: block`。inline-block のベースライン＝最後のフロー内行＝ひらがな行になり周囲のテキストと揃う).
 
 ## Build
 
 ```bash
+# Safari版
 xcodebuild -scheme RubiPon build -destination 'generic/platform=iOS'
+
+# Chrome版（dist/chrome/ に組み立て。--zip でストア用zip、--no-sudachi で軽量ビルド）
+npm run build:chrome
 ```
 
 Two targets: `RubiPon` (iOS host app) and `RubiPon Extension` (Safari web extension). Building the scheme builds both. No test suite or linter is configured. Xcode project is `RubiPon.xcodeproj`.
 
 `furikana Extension/Resources/` uses PBXFileSystemSynchronizedRootGroup — files added to this directory are automatically picked up by Xcode without pbxproj edits.
 
+### プラットフォーム構成（Safari / Chrome）
+
+- **`furikana Extension/Resources/` が共有ソースの正**。Chrome 版のためにファイルを動かさないこと（Xcode の synchronized group が壊れる）。`dist/chrome/` はビルド出力なので編集禁止。
+- Chrome 固有の挙動は共有コード内の実行時分岐で扱う: `FK_IS_CHROMIUM = /Chrome\//.test(navigator.userAgent)`（Safari・ホストアプリWKWebViewでは偽）。ネイティブメッセージング（AppGroup同期・os_log・辞書チャンク読み込み）は `FK_HAS_NATIVE` でガード。
+- **api-shim.js** — 全コンテキストの先頭でロード。Chrome に `browser = chrome` を提供（Safariでは no-op）。popup.html / options.html からも読み込まれる。
+- **辞書ロードの分岐**: Safari は background から fetch で拡張リソースを読めないため sendNativeMessage → Swift チャンク読み込み。Chrome は `fetch()` 直読み（kuromoji.js `_loadViaFetch`、ext-helper.js `_loadDictViaFetch`）。
+- **dictType 'system' は Safari 専用**。Chrome では `fkNormalizeDictType()` が 'ipadic' に正規化し、options.js が選択肢を非表示にする。Chrome の既定 dictType は 'ipadic'。
+- **ユーザー辞書TSV原文**: Safari は AppGroup、Chrome は `storage.local` の `userDictTSV` キーに永続化。
+- **ツールバーアイコン**: Chrome は setIcon の SVG 非対応のため PNG に切り替え（background.js / popup.js）。
+- **`chrome/`** — Chrome 専用ファイル: `manifest.json`（MV3 service_worker）と `sw.js`（importScripts ローダー。順序は Safari の background scripts 配列と同一: api-shim → kuromoji → ext-helper → sudachi-bundle → background）。
+
 ### Manifest
 
-Manifest V3 (`manifest_version: 3`, requires Safari 15.4+ / iOS 15.4+). Background scripts: `["kuromoji.js", "ext-helper.js", "sudachi-bundle.js", "background.js"]` with `persistent: false`（順序重要 — ext-helper.js と sudachi-bundle.js は background.js より先にロード）. Content scripts load `reading-rules.js` before `content.js` (order matters — ReadingRules IIFE must be defined first). Localized with `_locales/en/` and `_locales/ja/`.
+**Safari** (`furikana Extension/Resources/manifest.json`): Manifest V3 (`manifest_version: 3`, requires Safari 15.4+ / iOS 15.4+). Background scripts: `["kuromoji.js", "ext-helper.js", "sudachi-bundle.js", "background.js"]` with `persistent: false`（順序重要 — ext-helper.js と sudachi-bundle.js は background.js より先にロード）. Content scripts load `reading-rules.js` before `content.js` (order matters — ReadingRules IIFE must be defined first). Localized with `_locales/en/` and `_locales/ja/`.
+
+**Chrome** (`chrome/manifest.json`): MV3 `service_worker: "sw.js"`。content scripts は `["api-shim.js", "reading-rules.js", "content.js"]`。`nativeMessaging` 権限なし。CSP に `'wasm-unsafe-eval'`（Sudachi WASM 用）。
 
 ## Architecture
 
@@ -80,6 +97,9 @@ Host app and extension share data via AppGroup (`group.con3.furikana`). `ViewCon
 - **`furikana Extension/Resources/options.js`** / **`options.html`** / **`options.css`** — Settings page (dict type, reading type, unit type, ruby styling sliders, auto-enable, reverse ruby, reading rules toggle, user dictionary). Includes live preview of ruby styling. ホストアプリのWKWebViewでも表示される（browser.i18n 非対応環境ではHTMLの日本語がフォールバック）。
 - **popup.css / options.css** — `@media (prefers-color-scheme: dark)` でダークモード対応（`color-scheme: light dark` 宣言済み）。
 - **`furikana/ViewController.swift`** — Host app WKWebView controller. Injects `browser.storage.local` polyfill and back-button script. Bridges settings between web UI and UserDefaults via AppGroup.
+- **`furikana Extension/Resources/api-shim.js`** — プラットフォーム吸収シム。Chrome に `browser = chrome` を提供（Safari では no-op）。Chrome では全コンテキストの先頭、Safari では popup.html / options.html からロード。
+- **`chrome/manifest.json`** / **`chrome/sw.js`** — Chrome 専用。MV3 service worker エントリ（sw.js が importScripts で共有スクリプトを Safari と同順にロード）。
+- **`scripts/build-chrome.js`** — Chrome 版ビルド。共有リソース + chrome/ を `dist/chrome/` に組み立てる（`npm run build:chrome`、`--zip` / `--no-sudachi` オプション）。
 
 ### Ruby Display Modes
 
@@ -90,7 +110,7 @@ Host app and extension share data via AppGroup (`group.con3.furikana`). `ViewCon
 
 **ひらがなメインモード** (`reverseRuby: true`):
 - Ruby gets `display: inline-block` + `font-size: rubySize%` (kanji shrinks).
-- Rt gets `display: block` + `position: absolute` + `inset-block-start: 100%` (appears below kanji).
+- Rt gets `display: block`（フロー内、appears below kanji）。**`position: absolute` + `inset-block-start: 100%` にしないこと** — Chrome は指定を忠実に適用するためひらがながベースライン下にぶら下がり行がガタガタに崩れる（Safari は rt の display/position 上書きを無視するため差が出ない）。フロー内ブロックなら inline-block のベースライン＝ひらがな行になり両ブラウザで周囲のテキストと揃う。
 - Rt font-size is calculated as `100/rubySize*100`% to cancel the parent's shrinkage.
 - `rubyGap` applies as `margin-block-start` on rt.
 
@@ -129,7 +149,7 @@ Rules have priority (higher = runs first). Regex rules support `$1`/`$2` capture
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `dictType` | `'system'`\|`'ipadic'`\|`'sudachi'` | `'system'` | Tokenization backend |
+| `dictType` | `'system'`\|`'ipadic'`\|`'sudachi'` | `'system'`（Chrome: `'ipadic'`） | Tokenization backend（`'system'` は Safari 専用） |
 | `readingType` | `'hiragana'`\|`'romaji'` | `'hiragana'` | Ruby display format |
 | `unitType` | `'long'`\|`'short'` | `'long'` | Token merging granularity |
 | `autoEnable` | bool | `false` | Auto-apply on page load |
@@ -142,6 +162,7 @@ Rules have priority (higher = runs first). Regex rules support `$1`/`$2` capture
 | `rubyBoxPadding` | float | `0.15` | Paragraph padding (em) |
 | `rubyBoxMargin` | float | `0` | Paragraph margin (em) |
 | `userDictRules` | object\|null | `null` | ユーザー辞書ルール（`parseUserDictTSV`で生成、`{surfaceRules, sequenceRules}`形式） |
+| `siteStyleOverrides` | object\|null | `null` | サイト別表示スタイル記憶。`{ホスト名: {v: {6値}, t: 最終更新epoch}}`。上限100件LRU |
 
 ### Settings Change Flow
 
@@ -149,6 +170,8 @@ Settings changed in popup/options → `browser.storage.local.set()` → `storage
 - **CSS-only keys** (rubySize, rubyGap, etc.): `applyRubyCSS()` + `realignAllRubyWidths()`
 - **reverseRuby, readingType, unitType, readingRules, dictType**: `scheduleRebuild()` → defers to `rebuildFurigana()` (hidden tabs wait until visible)
 - **userDictRules**: `ReadingRules.setUserRules(rules)` → `scheduleRebuild()`
+
+**サイト別表示スタイル記憶と初期値**: popup のスライダー操作時に `saveSiteStyleSnapshot()` がアクティブタブのホスト名単位で6値（rubySize/rubyGap/rubyLineHeight/rubyMinHeight/rubyBoxPadding/rubyBoxMargin）のスナップショットを `siteStyleOverrides` に保存（上限100件、`t` が古いものからLRU削除）。**ページ表示の6値は「サイト記憶 → なければ初期値」で決まる。初期値 = storage のグローバル6値（options 画面の6値スライダーでのみ編集。popup はグローバル6値に書き込まない）**。サイト記憶を適用中のホストは初期値変更の影響を受けない（ピン留め — content.js の `onChanged` でスキップ）。サイト値の変更・消去（LRU押し出し・手動クリア）は `changes.siteStyleOverrides` 経由で反映され、消去時は初期値へ戻る（`restoreDefaultStyleValues()` が storage から再取得）。options のリセットボタンは初期値を工場出荷値（`SITE_STYLE_DEFAULTS` 相当）に戻す。options に全消去ボタンあり。**AppGroup 同期からは userDictRules 同様に除外**（background 再起動時の巻き戻り防止）。
 
 **ユーザー辞書フロー**: options.js がTSVを `updateUserDict` メッセージで background.js に送信 → `parseUserDictTSV()` でルール変換 → `storage.local.set({ userDictRules })` で全タブに通知 → content.js の `storage.onChanged` で `ReadingRules.setUserRules()` を呼び出し。TSV原文は `saveUserDict` アクションで AppGroup にも永続化（`userDictRules`はExpansion後のデータが巨大になるためAppGroup同期から除外）。
 
@@ -165,11 +188,14 @@ Use logical properties (`inset-block-start`, `margin-block-end`, `min-block-size
 - **Generation counter**: `furikanaGeneration` increments on settings changes that require re-render. In-flight tokenization results check their generation against the current value and discard if stale.
 - **Width alignment**: `getBoundingClientRect()` is used instead of `offsetWidth` for ruby/rt width measurement, since `offsetWidth` is unreliable with `display: ruby`.
 - **background.js lifecycle**: `persistent: false` means Safari can terminate background.js after idle. `isConnectionError()` detects this and triggers retry with 2s wait instead of entering cooldown. `sendBatchTokenize` retries once on connection error.
+- **Extension context invalidated（回復不能）**: 拡張のリロード/更新で既存タブの content.js が孤児化すると `browser.runtime` が恒久的に無効になる（Chrome の開発時に頻発）。これは一時的な接続エラーとは別物で、`isContextInvalidated()` → `handleContextInvalidated()` がプロセッサ・MutationObserver を完全停止する（リトライしない）。ページ再読み込みで新しい content script が動く。孤児化後の `sendMessage` は同期 throw になるため `.catch()` だけでなく try/catch が必要。
 - **Double-ruby prevention**: `getTextNodes()` excludes text inside any `<ruby>` ancestor (including `<rb>`, `<rt>`) to avoid adding furigana to sites that already use ruby markup.
 - **Background tab optimization**: `scheduleRebuild()` defers ruby rebuild on hidden tabs via `document.hidden` + `visibilitychange` listener, preventing unnecessary processing across all open tabs when settings change.
-- **NLTagger + 改行テキスト**: NLTagger は改行文字で始まるテキストに対して空のトークン配列を返す。`processQueue` でテキストをトリムしてからトークン化し、`leadingWhitespace` オフセットをトークンの `range` に加算して補正する。
+- **NLTagger + 改行テキスト**: NLTagger は改行に致命的に弱い。①改行で始まるテキストには空のトークン配列を返す → content.js の `prepareTextForTokenize()` が先頭・末尾をトリムし `offsetTokenRanges()` で range を補正。②**テキスト途中の改行で列挙が停止し、それ以降のトークンを一切返さない**（Yahoo!ニュース等は複数段落を改行区切りで1テキストノードに含むため、途中からふりがなが消える）→ Swift の `tokenizeText()` が改行で行分割して `tokenizeSegment()`（3段階パイプライン本体）を行ごとに実行し、UTF-16 オフセットを補正して結合する。
 - **rubyCount === 0 のDOM置換スキップ**: `applyTokensToNode` でルビが1つも生成されなかった場合（漢字なし）、DOM置換を行わずそのまま `true` を返す。置換すると新テキストノードが `processedNodes` に未登録のまま残り、次のスキャンで再検出されて無限ループになる。
 - **userDictRules のAppGroup同期除外**: `allPartitions` 展開後のデータが巨大になるため、`userDictRules` は AppGroup の `syncSettings` / `forceSyncToAppGroup` から `delete` して除外。TSV原文は別途 `saveUserDict` アクションで AppGroup に保存。
+- **WKWebView 表示ページの font-family は日本語フォント先頭**: iOSシミュレーターのアプリ内 WKWebView は `-apple-system` / `system-ui` 経由の CJK フォールバックが壊れて日本語が豆腐になる（実機・Safariは正常）。Style.css / licenses.html / options.css / popup.css は `"Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, ...` の順を維持すること。
+- **xcodebuild の `-derivedDataPath` を Dropbox 配下にしない**: Dropbox が生成物に拡張属性を付けて CodeSign が detritus エラーで失敗する。デフォルト（~/Library/...）か Dropbox 外を使う。
 
 ## Build Notes
 
@@ -187,6 +213,7 @@ JS ファイルの構文チェック: `node -c "furikana Extension/Resources/con
 - content.js / background.js: Safari → 開発 → 対象ページの Web インスペクタ
 - background.js のみ: Safari → 開発 → Web Extension Background Content
 - Swift ログ: Xcode コンソール（`os_log`）
+- Chrome 版: `chrome://extensions` → るびポンのカード → 「Service Worker」リンク（background）、対象ページの DevTools（content.js）
 
 ## Language
 

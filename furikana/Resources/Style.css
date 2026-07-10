@@ -25,7 +25,17 @@ body {
     height: 100%;
 
     font: -apple-system-short-body;
+    /* システムフォント（-apple-system / system-ui / -apple-system-short-body）は
+       iOSシミュレーターのアプリ内WKWebViewでCJKフォールバックが壊れて日本語が
+       豆腐（?ボックス）になる（実機は正常、Safariアプリは正常）。
+       日本語フォントをスタック先頭に置いて回避する。サイズは shorthand から継承。 */
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, sans-serif;
     text-align: center;
+}
+
+/* フォーム部品は body の font-family を継承しないため明示（豆腐対策の続き） */
+button, select, input, textarea {
+    font-family: inherit;
 }
 
 /* 辞書管理セクション */
@@ -88,6 +98,7 @@ body {
 
 #dict-section button {
     font: -apple-system-short-body;
+    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", -apple-system, sans-serif;
     font-size: 14px;
     padding: 8px 20px;
     border: none;

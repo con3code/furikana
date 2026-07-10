@@ -4,43 +4,37 @@
 
     "name": "__MSG_extension_name__",
     "description": "__MSG_extension_description__",
-    "version": "1.1",
+    "version": "1.1.1",
+    "version_name": "1.1 (1)",
 
     "icons": {
-        "40": "images/icon-40.png",
-        "76": "images/icon-76.png",
-        "128": "images/icon-128.png",
-        "256": "images/icon-256.png",
-        "512": "images/icon-512.png"
+        "48": "images/icon-48.png",
+        "96": "images/icon-96.png",
+        "128": "images/Icon-128.png",
+        "256": "images/Icon-256.png",
+        "512": "images/Icon-512.png"
     },
 
     "background": {
-        "scripts": ["kuromoji.js", "ext-helper.js", "sudachi-bundle.js", "background.js"],
-        "persistent": false
+        "service_worker": "sw.js"
     },
 
-    "web_accessible_resources": [{
-        "resources": ["dict/*", "sudachi-dict/*"],
-        "matches": ["<all_urls>"]
-    }],
-
     "content_scripts": [{
-        "js": [ "reading-rules.js", "content.js" ],
+        "js": [ "api-shim.js", "reading-rules.js", "content.js" ],
         "matches": [ "<all_urls>" ],
         "run_at": "document_idle"
     }],
 
     "action": {
         "default_popup": "popup.html",
-        "default_icon": "images/toolbar-icon_off.svg"
+        "default_icon": "images/toolbar-icon_off.png"
     },
 
     "options_page": "options.html",
 
     "permissions": [
         "storage",
-        "unlimitedStorage",
-        "nativeMessaging"
+        "unlimitedStorage"
     ],
 
     "host_permissions": [

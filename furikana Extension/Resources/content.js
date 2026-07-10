@@ -26,14 +26,54 @@ function katakanaToHiragana(str) {
 
 // ReadingRules は reading-rules.js で定義（manifest.json で先にロード）
 
+// トークン化用にテキストの先頭・末尾空白を除去する
+// NLTagger（dictType=system）は改行で始まるテキストに対して空のトークン配列を返すため
+// （新聞サイト等のサーバー生成HTMLは "\n\t\t\t　本文…" の形が多く、本文全体が振られなくなる）、
+// トリムしてから送信し、返ってきたトークンの range に先頭空白分のオフセットを加算して補正する
+function prepareTextForTokenize(text) {
+    const m = text.match(/^\s+/);
+    const leading = m ? m[0].length : 0;
+    return { sendText: text.slice(leading).replace(/\s+$/, ''), leading };
+}
+
+// トークンの range を先頭空白分ずらして元テキストの位置に合わせる
+function offsetTokenRanges(tokens, leading) {
+    if (!tokens || leading === 0) return tokens;
+    return tokens.map(t => Object.assign({}, t, { range: [t.range[0] + leading, t.range[1] + leading] }));
+}
+
 // 接続エラー（background.js停止）かどうかを判定
+// 一時的なエラーのみ。回復不能な context invalidated は isContextInvalidated で別扱い
 function isConnectionError(error) {
     if (!error) return false;
     const msg = (error.message || error.toString()).toLowerCase();
     return msg.includes('could not establish connection')
         || msg.includes('receiving end does not exist')
-        || msg.includes('extension context invalidated')
         || msg.includes('message port closed');
+}
+
+// 拡張のリロード/更新で content script が孤児化した状態かどうかを判定
+// （Chrome でよく発生。browser.runtime が恒久的に無効になり、リトライしても回復しない）
+function isContextInvalidated(error) {
+    if (!error) return false;
+    const msg = (error.message || error.toString()).toLowerCase();
+    return msg.includes('extension context invalidated');
+}
+
+// 孤児化した content script の活動を完全停止する（1回だけ実行）
+// ページを再読み込みすれば新しい拡張の content script が動き出す
+let furikanaContextInvalidated = false;
+
+function handleContextInvalidated() {
+    if (furikanaContextInvalidated) return;
+    furikanaContextInvalidated = true;
+    console.warn('[Furikana] Extension context invalidated: 拡張が更新/リロードされたため、このタブでの処理を停止します。ページを再読み込みすると再開します。');
+    try {
+        if (visibleProcessor) {
+            visibleProcessor.stop();
+            visibleProcessor = null;
+        }
+    } catch (_) {}
 }
 
 // リクエストキューイングシステム
@@ -60,6 +100,9 @@ class RequestQueue {
 
     // リクエストをキューに追加
     async enqueue(fn) {
+        // 孤児化した拡張コンテキストでは何もしない
+        if (furikanaContextInvalidated) return null;
+
         // クールダウン中はスキップ
         if (this.cooldownUntil > 0) {
             if (Date.now() < this.cooldownUntil) {
@@ -109,7 +152,13 @@ class RequestQueue {
 
             resolve(result);
         } catch (error) {
-            if (isConnectionError(error)) {
+            if (isContextInvalidated(error)) {
+                // 拡張がリロードされ復旧不能 → リトライせず完全停止
+                this.queue.forEach(item => item.resolve(null));
+                this.queue = [];
+                handleContextInvalidated();
+                resolve(null);
+            } else if (isConnectionError(error)) {
                 // 接続エラー: background.js が停止中 → クールダウンカウントに入れない
                 console.warn('[Furikana] Connection error (background.js may be stopped):', error.message);
 
@@ -123,6 +172,7 @@ class RequestQueue {
                     // 2秒待ってから再スキャンをトリガー（background.js再起動の猶予）
                     setTimeout(() => {
                         this.connectionRetrying = false;
+                        if (furikanaContextInvalidated) return;
                         console.log('[Furikana] Retrying after connection error wait');
                         if (visibleProcessor && visibleProcessor.running) {
                             visibleProcessor.scheduleScan();
@@ -454,8 +504,10 @@ class VisibleTextProcessor {
                         this.queuedNodes.delete(node);
                         continue;
                     }
+                    // 先頭・末尾空白をトリム（NLTagger の改行先頭対策。range は適用時に補正）
+                    const { sendText, leading } = prepareTextForTokenize(text);
                     // 親要素はDOM置換後に辿れなくなるため、ループガード用にここで保持
-                    batch.push({ node, text, parent: node.parentElement });
+                    batch.push({ node, text, sendText, leading, parent: node.parentElement });
                 }
 
                 if (batch.length === 0) continue;
@@ -464,14 +516,14 @@ class VisibleTextProcessor {
                 const gen = furikanaGeneration;
                 let batchResults = null;
                 if (!requestQueue.isFallbackMode()) {
-                    batchResults = await sendBatchTokenize(batch.map(b => b.text));
+                    batchResults = await sendBatchTokenize(batch.map(b => b.sendText));
                 }
 
                 // 各ノードにトークンを適用（DOM操作のみ、通信なし）
                 for (let i = 0; i < batch.length; i++) {
-                    const { node, text, parent } = batch[i];
+                    const { node, text, leading, parent } = batch[i];
                     const result = batchResults ? batchResults[i] : null;
-                    const tokens = result ? result.tokens : null;
+                    const tokens = result ? offsetTokenRanges(result.tokens, leading) : null;
                     const dictSource = result ? result.dictSource : null;
                     const ok = applyTokensToNode(node, text, tokens, dictSource, gen);
                     this.queuedNodes.delete(node);
@@ -516,7 +568,6 @@ function applyRubyCSS() {
 
     const rubyCSS = reverseRuby ? `
     .furikana-ruby {
-      position: relative !important;
       display: inline-block !important;
       vertical-align: baseline !important;
       line-height: 1 !important;
@@ -526,10 +577,12 @@ function applyRubyCSS() {
     }
 
     .furikana-ruby > .furikana-rt {
+      /* rt はフロー内ブロックとして漢字の下に置く。inline-block の
+         ベースライン＝最後のフロー内行（＝ひらがな）になり、周囲のテキストと揃う。
+         position:absolute + inset-block-start:100% だと Chrome が指定を忠実に
+         適用してひらがながベースライン下にぶら下がり、行がガタガタにずれる
+         （Safari は rt の display/position 上書きを無視するため崩れなかった） */
       display: block !important;
-      position: absolute !important;
-      inset-block-start: 100% !important;
-      inset-inline-start: 0 !important;
       white-space: nowrap !important;
       line-height: 1 !important;
       font-size: ${rtSize}% !important;
@@ -853,6 +906,38 @@ function restoreOverflowAncestors() {
     });
 }
 
+// --- サイト別表示スタイルの記憶 ---
+// popup のスライダー操作時にホスト名単位で6値のスナップショットが保存され（上限100件・
+// 最終更新が古いものからLRU削除）、ページ読み込み時に上書き適用される。
+// 記憶のないサイト（初訪問・LRUで押し出された場合）は「初期値」で表示する。
+// 初期値 = storage のグローバル6値（options 画面でのみ編集される。未設定なら工場出荷値）。
+// popup のスライダーはサイト記憶のみを書き、グローバル6値（初期値）には触れない。
+const SITE_STYLE_KEYS = ['rubySize', 'rubyGap', 'rubyLineHeight', 'rubyMinHeight', 'rubyBoxPadding', 'rubyBoxMargin'];
+const SITE_STYLE_DEFAULTS = { rubySize: 50, rubyGap: 1, rubyLineHeight: 1.3, rubyMinHeight: 12, rubyBoxPadding: 0.15, rubyBoxMargin: 0 };
+const FURIKANA_HOST = location.hostname || '';
+let siteStyleActive = false; // このホストのサイト別記憶を適用中か
+
+// サイト別記憶エントリを settings に上書き適用する
+function applySiteStyleEntry(entry) {
+    if (!entry || !entry.v) return false;
+    for (const key of SITE_STYLE_KEYS) {
+        if (entry.v[key] !== undefined) settings[key] = entry.v[key];
+    }
+    siteStyleActive = true;
+    return true;
+}
+
+// サイト別記憶が消去された時に初期値（options で編集されたグローバル6値）へ戻す
+async function restoreDefaultStyleValues() {
+    const g = await browser.storage.local.get(SITE_STYLE_DEFAULTS);
+    for (const key of SITE_STYLE_KEYS) settings[key] = g[key];
+    applyRubyCSS();
+    if (!document.hidden) {
+        realignAllRubyWidths();
+        updateLineSpacingForAll();
+    }
+}
+
 // 設定を読み込み
 async function loadSettings() {
     const stored = await browser.storage.local.get({
@@ -868,10 +953,21 @@ async function loadSettings() {
         rubyMinHeight: 12,
         rubyBoxPadding: 0.15,
         rubyBoxMargin: 0,
-        userDictRules: null
+        userDictRules: null,
+        siteStyleOverrides: null
     });
 
+    const siteOverrides = stored.siteStyleOverrides;
+    delete stored.siteStyleOverrides;
     settings = stored;
+
+    // 6値の表示: このホストにサイト別記憶があればそれを、なければ初期値
+    // （storage のグローバル6値 = options で編集された初期値。stored に読み込み済み）
+    if (siteOverrides && FURIKANA_HOST && siteOverrides[FURIKANA_HOST]
+        && applySiteStyleEntry(siteOverrides[FURIKANA_HOST])) {
+        console.log('[Furikana] Site style restored for', FURIKANA_HOST);
+    }
+
     applyRubyCSS();
 
     // ユーザー辞書ルールを適用
@@ -1354,6 +1450,11 @@ async function sendBatchTokenize(texts, retry = 0) {
             throw new Error('Batch tokenize unsuccessful');
         });
     } catch (error) {
+        // 拡張リロードによる孤児化 → リトライ無意味、完全停止
+        if (isContextInvalidated(error)) {
+            handleContextInvalidated();
+            return null;
+        }
         // 接続エラーかつリトライ未実施 → 2秒待ってから1回リトライ
         if (isConnectionError(error) && retry < 1) {
             console.warn('[Furikana] Connection error in sendBatchTokenize, retrying in 2s...', error.message);
@@ -1500,9 +1601,11 @@ async function addFuriganaToNode(textNode) {
 
     if (!requestQueue.isFallbackMode()) {
         try {
-            const response = await sendNativeMessage('tokenize', { text });
+            // 先頭・末尾空白をトリムして送信し、range を補正（NLTagger の改行先頭対策）
+            const { sendText, leading } = prepareTextForTokenize(text);
+            const response = await sendNativeMessage('tokenize', { text: sendText });
             if (response && response.success && response.tokens) {
-                tokens = response.tokens;
+                tokens = offsetTokenRanges(response.tokens, leading);
                 dictSource = response.dictSource || 'system';
             }
         } catch (err) {
@@ -1585,8 +1688,12 @@ async function toggleFurigana() {
         furikanaEnabled = true;
     }
 
-    // ツールバーアイコンを更新
-    browser.runtime.sendMessage({ action: 'updateIcon', enabled: furikanaEnabled }).catch(() => {});
+    // ツールバーアイコンを更新（孤児化後の sendMessage は同期 throw になる）
+    try {
+        browser.runtime.sendMessage({ action: 'updateIcon', enabled: furikanaEnabled }).catch(() => {});
+    } catch (e) {
+        if (isContextInvalidated(e)) handleContextInvalidated();
+    }
 
     return furikanaEnabled;
 }
@@ -1610,9 +1717,14 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
 });
 
 // ページが再表示された時に App Group から設定を同期
+// （孤児化後の sendMessage は同期 throw になるため try/catch も必要）
 document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-        browser.runtime.sendMessage({ action: 'syncAppGroup' }).catch(() => {});
+    if (document.visibilityState === 'visible' && !furikanaContextInvalidated) {
+        try {
+            browser.runtime.sendMessage({ action: 'syncAppGroup' }).catch(() => {});
+        } catch (e) {
+            if (isContextInvalidated(e)) handleContextInvalidated();
+        }
     }
 });
 
@@ -1657,8 +1769,20 @@ browser.storage.onChanged.addListener((changes, areaName) => {
     if (areaName !== 'local') return;
     let needUpdate = false;
     let needSpacingUpdate = false;
+
+    // サイト別記憶の変更（このホスト分のみ反映）
+    // hostEntry: undefined=このイベントに含まれず / null=このホストの記憶なし(消去) / object=新値
+    let hostEntry;
+    if (changes.siteStyleOverrides) {
+        const overrides = changes.siteStyleOverrides.newValue;
+        hostEntry = (overrides && FURIKANA_HOST && overrides[FURIKANA_HOST]) || null;
+    }
+
     for (const key of RUBY_CSS_KEYS) {
         if (changes[key]) {
+            // グローバル6値 = 初期値（options で編集）。サイト別記憶を適用中の
+            // ホストでは初期値の変更を無視（記憶がピン留めされる）
+            if (SITE_STYLE_KEYS.includes(key) && siteStyleActive) continue;
             settings[key] = changes[key].newValue;
             needUpdate = true;
             if (key === 'rubyBoxPadding' || key === 'rubyBoxMargin') {
@@ -1666,6 +1790,26 @@ browser.storage.onChanged.addListener((changes, areaName) => {
             }
         }
     }
+
+    if (hostEntry) {
+        // このホストのサイト別記憶が更新された → 上書き適用
+        for (const key of SITE_STYLE_KEYS) {
+            if (hostEntry.v && hostEntry.v[key] !== undefined && settings[key] !== hostEntry.v[key]) {
+                settings[key] = hostEntry.v[key];
+                needUpdate = true;
+                if (key === 'rubyBoxPadding' || key === 'rubyBoxMargin') {
+                    needSpacingUpdate = true;
+                }
+            }
+        }
+        siteStyleActive = true;
+    } else if (hostEntry === null && siteStyleActive) {
+        // 記憶が消去された（LRU押し出し or 手動クリア）→ 初期値に戻す
+        siteStyleActive = false;
+        console.log('[Furikana] Site style cleared for', FURIKANA_HOST, '- restoring default values');
+        restoreDefaultStyleValues(); // async（storage から初期値を再取得して適用）
+    }
+
     if (needUpdate) {
         applyRubyCSS();
         if (!document.hidden) realignAllRubyWidths();

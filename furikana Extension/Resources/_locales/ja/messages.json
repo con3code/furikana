@@ -51,6 +51,10 @@
         "message": "表示設定",
         "description": "Display section heading"
     },
+    "options_display_defaults_desc": {
+        "message": "ここで設定するスライダー値は「初期値」として、サイト別の記憶がないサイトに適用されます。サイトごとの調整はツールバーのポップアップで行ってください。",
+        "description": "Options: display section defaults explanation"
+    },
     "options_reading_type": {
         "message": "読み仮名の種類",
         "description": "Reading type label"
@@ -108,6 +112,27 @@
     "options_reading_rules": {
         "message": "読み補正ルールを適用（ルールベース）",
         "description": "Reading rules checkbox"
+    },
+    "options_site_styles_desc": {
+        "message": "ポップアップで操作したスライダー値はサイトごと（最大100件）に自動記憶され、次回訪問時に再現されます。記憶のないサイトは上の初期値で表示されます。",
+        "description": "Options: per-site style memory"
+    },
+    "options_clear_site_styles": {
+        "message": "サイト別の記憶を消去",
+        "description": "Options: per-site style memory"
+    },
+    "options_site_styles_cleared": {
+        "message": "$COUNT$件の記憶を消去しました",
+        "description": "Options: per-site style memory",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "options_site_styles_clear_failed": {
+        "message": "消去に失敗しました",
+        "description": "Options: per-site style memory"
     },
     "options_user_dict_heading": {
         "message": "ユーザー辞書",
@@ -187,6 +212,15 @@
         "message": "ルビ行間隔: $VALUE$px",
         "description": "Popup ruby gap slider label",
         "placeholders": { "value": { "content": "$1" } }
+    },
+    "popup_line_height": {
+        "message": "行の高さ: $VALUE$",
+        "description": "Popup line height slider label",
+        "placeholders": {
+            "value": {
+                "content": "$1"
+            }
+        }
     },
     "popup_auto_enable": {
         "message": "自動ふりがな",

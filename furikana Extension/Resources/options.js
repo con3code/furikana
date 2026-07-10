@@ -1,5 +1,9 @@
 // 設定画面のメインスクリプト
 
+// Chromium 系（Chrome/Edge 等）では Swift ネイティブホストが使えないため
+// 「システム辞書」の選択肢を隠す（ホストアプリWKWebView・Safari では表示）
+const FK_IS_CHROMIUM = typeof navigator !== 'undefined' && /Chrome\//.test(navigator.userAgent || '');
+
 // --- ユーザー辞書 TSV パーサ（background.js と同一ロジック） ---
 function parseUserDictTSV(tsvText) {
     var surfaceRules = [];
@@ -109,15 +113,16 @@ function updatePreview() {
         if (!rt) return;
 
         if (reverseRuby) {
-            // 逆転モード: 漢字が縮小、rtが下に表示
+            // 逆転モード: 漢字が縮小、rtがフロー内ブロックとして下に表示
+            // （content.js の applyRubyCSS と同方式。absolute だと Chrome で崩れる）
             ruby.style.display = 'inline-block';
-            ruby.style.position = 'relative';
+            ruby.style.position = '';
             ruby.style.lineHeight = '1';
             ruby.style.fontSize = rubySize + '%';
             rt.style.display = 'block';
-            rt.style.position = 'absolute';
-            rt.style.insetBlockStart = '100%';
-            rt.style.insetInlineStart = '0';
+            rt.style.position = '';
+            rt.style.insetBlockStart = '';
+            rt.style.insetInlineStart = '';
             rt.style.fontSize = rtSize + '%';
             rt.style.marginBlockStart = gap;
             rt.style.marginBlockEnd = '';
@@ -193,7 +198,9 @@ async function loadSettings() {
     document.getElementById('ruby-box-margin').value = s.rubyBoxMargin;
     updatePreview();
 
-    const radio = document.querySelector(`input[name="dictType"][value="${s.dictType}"]`);
+    // Chrome では 'system' が保存されていても実際は ipadic で動作する（background.js で正規化）
+    const effectiveDictType = (FK_IS_CHROMIUM && s.dictType === 'system') ? 'ipadic' : s.dictType;
+    const radio = document.querySelector(`input[name="dictType"][value="${effectiveDictType}"]`);
     if (radio) radio.checked = true;
 }
 
@@ -208,7 +215,7 @@ async function saveSettings() {
             autoEnable: document.getElementById('auto-enable').checked,
             reverseRuby: document.getElementById('reverse-ruby').checked,
             readingRules: document.getElementById('reading-rules').checked,
-            dictType: dictRadio ? dictRadio.value : 'system',
+            dictType: dictRadio ? dictRadio.value : (FK_IS_CHROMIUM ? 'ipadic' : 'system'),
             rubySize: parseInt(document.getElementById('ruby-size').value, 10),
             rubyGap: parseInt(document.getElementById('ruby-gap').value, 10),
             rubyLineHeight: parseFloat(document.getElementById('ruby-line-height').value),
@@ -284,6 +291,14 @@ function applyI18n() {
 document.addEventListener('DOMContentLoaded', async () => {
     try {
         applyI18n();
+
+        // Chrome ではシステム辞書（ネイティブ解析）を選択肢から外す
+        if (FK_IS_CHROMIUM) {
+            const systemRadio = document.querySelector('input[name="dictType"][value="system"]');
+            const systemItem = systemRadio && systemRadio.closest('.dictionary-item');
+            if (systemItem) systemItem.style.display = 'none';
+        }
+
         await loadSettings();
 
         // Sudachi 辞書モード表示
@@ -337,6 +352,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         document.getElementById('save-settings').addEventListener('click', saveSettings);
         document.getElementById('reset-sliders').addEventListener('click', resetSliders);
+
+        // サイト別表示スタイル記憶の消去
+        document.getElementById('clear-site-styles').addEventListener('click', async () => {
+            const statusEl = document.getElementById('clear-site-styles-status');
+            const hasI18n = typeof browser !== 'undefined' && browser.i18n && browser.i18n.getMessage;
+            try {
+                const stored = await browser.storage.local.get({ siteStyleOverrides: {} });
+                const count = Object.keys(stored.siteStyleOverrides || {}).length;
+                await browser.storage.local.set({ siteStyleOverrides: {} });
+                const countStr = String(count);
+                statusEl.textContent = hasI18n
+                    ? (browser.i18n.getMessage('options_site_styles_cleared', [countStr]) || countStr + '件の記憶を消去しました')
+                    : countStr + '件の記憶を消去しました';
+                statusEl.style.color = '#34c759';
+            } catch (e) {
+                statusEl.textContent = hasI18n
+                    ? (browser.i18n.getMessage('options_site_styles_clear_failed') || '消去に失敗しました')
+                    : '消去に失敗しました';
+                statusEl.style.color = '#ff3b30';
+            }
+        });
 
         // ユーザー辞書: アコーディオンヘッダークリックで開閉
         const userDictToggle = document.getElementById('user-dict-toggle');

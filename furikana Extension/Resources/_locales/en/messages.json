@@ -51,6 +51,10 @@
         "message": "Display",
         "description": "Display section heading"
     },
+    "options_display_defaults_desc": {
+        "message": "Slider values set here are the defaults, applied to sites without a per-site memory. Adjust individual sites from the toolbar popup.",
+        "description": "Options: display section defaults explanation"
+    },
     "options_reading_type": {
         "message": "Reading type",
         "description": "Reading type label"
@@ -108,6 +112,27 @@
     "options_reading_rules": {
         "message": "Apply reading correction rules (rule-based)",
         "description": "Reading rules checkbox"
+    },
+    "options_site_styles_desc": {
+        "message": "Slider values adjusted from the popup are automatically remembered per site (up to 100 sites) and restored on your next visit. Sites without a memory use the default values above.",
+        "description": "Options: per-site style memory"
+    },
+    "options_clear_site_styles": {
+        "message": "Clear per-site memory",
+        "description": "Options: per-site style memory"
+    },
+    "options_site_styles_cleared": {
+        "message": "Cleared $COUNT$ remembered site(s)",
+        "description": "Options: per-site style memory",
+        "placeholders": {
+            "count": {
+                "content": "$1"
+            }
+        }
+    },
+    "options_site_styles_clear_failed": {
+        "message": "Failed to clear",
+        "description": "Options: per-site style memory"
     },
     "options_user_dict_heading": {
         "message": "User Dictionary",
@@ -187,6 +212,15 @@
         "message": "Ruby gap: $VALUE$px",
         "description": "Popup ruby gap slider label",
         "placeholders": { "value": { "content": "$1" } }
+    },
+    "popup_line_height": {
+        "message": "Line height: $VALUE$",
+        "description": "Popup line height slider label",
+        "placeholders": {
+            "value": {
+                "content": "$1"
+            }
+        }
     },
     "popup_auto_enable": {
         "message": "Auto furigana",
