@@ -51,6 +51,10 @@
         "message": "表示設定",
         "description": "Display section heading"
     },
+    "options_display_defaults_desc": {
+        "message": "ここで設定するスライダー値は「初期値」として、サイト別の記憶がないサイトに適用されます。サイトごとの調整はツールバーのポップアップで行ってください。",
+        "description": "Options: display section defaults explanation"
+    },
     "options_reading_type": {
         "message": "読み仮名の種類",
         "description": "Reading type label"
@@ -110,7 +114,7 @@
         "description": "Reading rules checkbox"
     },
     "options_site_styles_desc": {
-        "message": "スライダー値はポップアップで操作したサイトごと（最大100件）に自動記憶され、次回訪問時に再現されます。記憶のないサイトはリセット時の初期値で表示されます。",
+        "message": "ポップアップで操作したスライダー値はサイトごと（最大100件）に自動記憶され、次回訪問時に再現されます。記憶のないサイトは上の初期値で表示されます。",
         "description": "Options: per-site style memory"
     },
     "options_clear_site_styles": {

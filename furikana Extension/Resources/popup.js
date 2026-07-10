@@ -67,16 +67,18 @@ async function resolveActiveSiteHost() {
 async function saveSiteStyleSnapshot(partial) {
     if (!activeSiteHost) return;
     try {
-        const stored = await browser.storage.local.get({ siteStyleOverrides: {} });
+        const stored = await browser.storage.local.get(
+            Object.assign({ siteStyleOverrides: {} }, SITE_STYLE_DEFAULTS)
+        );
         const overrides = stored.siteStyleOverrides || {};
         const prev = (overrides[activeSiteHost] && overrides[activeSiteHost].v) || {};
         const v = {};
         for (const key of SITE_STYLE_KEYS) {
-            // 補完順: 今回の変更 → 既存のサイト記憶 → リセット初期値
-            // （記憶のないサイトはリセット初期値で表示されているため、それをそのまま記憶する）
+            // 補完順: 今回の変更 → 既存のサイト記憶 → 初期値（optionsで編集されたグローバル値）
+            // （記憶のないサイトは初期値で表示されているため、それをそのまま記憶する）
             v[key] = (partial[key] !== undefined) ? partial[key]
                    : (prev[key] !== undefined) ? prev[key]
-                   : SITE_STYLE_DEFAULTS[key];
+                   : stored[key];
         }
         overrides[activeSiteHost] = { v: v, t: Date.now() };
 
@@ -276,9 +278,8 @@ async function onRubySizeInput() {
     document.getElementById('popup-ruby-size-value').textContent = val;
 
     if (rubySizeSaveTimer) clearTimeout(rubySizeSaveTimer);
-    rubySizeSaveTimer = setTimeout(async () => {
+    rubySizeSaveTimer = setTimeout(() => {
         rubySizeSaveTimer = null;
-        await browser.storage.local.set({ rubySize: val });
         saveSiteStyleSnapshot({ rubySize: val });
     }, 150);
 }
@@ -290,9 +291,8 @@ async function onRubyGapInput() {
     document.getElementById('popup-ruby-gap-value').textContent = val;
 
     if (rubyGapSaveTimer) clearTimeout(rubyGapSaveTimer);
-    rubyGapSaveTimer = setTimeout(async () => {
+    rubyGapSaveTimer = setTimeout(() => {
         rubyGapSaveTimer = null;
-        await browser.storage.local.set({ rubyGap: val });
         saveSiteStyleSnapshot({ rubyGap: val });
     }, 150);
 }
@@ -304,9 +304,8 @@ async function onLineHeightInput() {
     document.getElementById('popup-line-height-value').textContent = val.toFixed(2);
 
     if (lineHeightSaveTimer) clearTimeout(lineHeightSaveTimer);
-    lineHeightSaveTimer = setTimeout(async () => {
+    lineHeightSaveTimer = setTimeout(() => {
         lineHeightSaveTimer = null;
-        await browser.storage.local.set({ rubyLineHeight: val });
         saveSiteStyleSnapshot({ rubyLineHeight: val });
     }, 150);
 }
@@ -332,7 +331,7 @@ function flushPendingSaves() {
         pending.rubyLineHeight = parseFloat(document.getElementById('popup-line-height').value);
     }
     if (Object.keys(pending).length > 0) {
-        browser.storage.local.set(pending).catch(() => {});
+        // popup のスライダーはサイト記憶のみを書く（グローバル6値=初期値には触れない）
         saveSiteStyleSnapshot(pending);
     }
 }
@@ -359,16 +358,18 @@ async function loadPopupSettings() {
     try {
         await browser.runtime.sendMessage({ action: 'syncAppGroup' });
     } catch (e) { /* 同期失敗時はスキップ */ }
-    const s = await browser.storage.local.get({ autoEnable: false, reverseRuby: false, siteStyleOverrides: null });
+    const s = await browser.storage.local.get(
+        Object.assign({ autoEnable: false, reverseRuby: false, siteStyleOverrides: null }, SITE_STYLE_DEFAULTS)
+    );
 
-    // スライダー初期値: サイト別記憶があればその値、なければリセット初期値
-    // （ページ表示と同じ決まり方。グローバル値は使わない）
+    // スライダー初期値: サイト別記憶があればその値、なければ初期値（optionsで編集されたグローバル値）
+    // （ページ表示と同じ決まり方）
     activeSiteHost = await resolveActiveSiteHost();
     const siteEntry = activeSiteHost && s.siteStyleOverrides && s.siteStyleOverrides[activeSiteHost];
     const sv = (siteEntry && siteEntry.v) || {};
-    s.rubySize = (sv.rubySize !== undefined) ? sv.rubySize : SITE_STYLE_DEFAULTS.rubySize;
-    s.rubyGap = (sv.rubyGap !== undefined) ? sv.rubyGap : SITE_STYLE_DEFAULTS.rubyGap;
-    s.rubyLineHeight = (sv.rubyLineHeight !== undefined) ? sv.rubyLineHeight : SITE_STYLE_DEFAULTS.rubyLineHeight;
+    s.rubySize = (sv.rubySize !== undefined) ? sv.rubySize : s.rubySize;
+    s.rubyGap = (sv.rubyGap !== undefined) ? sv.rubyGap : s.rubyGap;
+    s.rubyLineHeight = (sv.rubyLineHeight !== undefined) ? sv.rubyLineHeight : s.rubyLineHeight;
 
     document.getElementById('popup-ruby-size').value = s.rubySize;
     document.getElementById('popup-ruby-size-value').textContent = s.rubySize;
