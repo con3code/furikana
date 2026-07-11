@@ -52,7 +52,7 @@
         "description": "Display section heading"
     },
     "options_display_defaults_desc": {
-        "message": "ここで設定するスライダー値は「初期値」として、サイト別の記憶がないサイトに適用されます。サイトごとの調整はツールバーのポップアップで行ってください。",
+        "message": "ここでのスライダー値は「初期値」として設定記憶のないサイトに適用されます。サイト別の調整はツールバーのポップアップで行ないます。",
         "description": "Options: display section defaults explanation"
     },
     "options_reading_type": {

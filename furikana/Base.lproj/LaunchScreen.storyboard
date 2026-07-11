@@ -33,7 +33,7 @@
                                             <constraint firstAttribute="height" constant="128" id="img-h-001"/>
                                             <constraint firstAttribute="width" constant="128" id="img-w-001"/>
                                         </constraints>
-                                        <imageReference key="image" image="LargeIcon"/>
+                                        <imageReference key="image" image="Icon.png"/>
                                     </imageView>
                                     <label opaque="NO" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" text="Just a moment..." textAlignment="natural" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="aKA-Sd-B5R">
                                         <rect key="frame" x="0.5" y="196" width="127" height="20.5"/>
@@ -59,7 +59,7 @@
         </scene>
     </scenes>
     <resources>
-        <image name="LargeIcon" width="512" height="512"/>
+        <image name="Icon.png" width="512" height="512"/>
         <systemColor name="systemBackgroundColor">
             <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
         </systemColor>

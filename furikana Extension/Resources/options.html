@@ -16,7 +16,6 @@
         <!-- 表示設定セクション -->
         <section class="section">
             <h2 data-i18n="options_display_heading">表示設定</h2>
-            <p class="description" data-i18n="options_display_defaults_desc">ここで設定するスライダー値は「初期値」として、サイト別の記憶がないサイトに適用されます。サイトごとの調整はツールバーのポップアップで行ってください。</p>
 
             <div class="setting-item">
                 <label for="reading-type" data-i18n="options_reading_type">読み仮名の種類</label>
@@ -26,7 +25,9 @@
                 </select>
             </div>
 
-            <div style="margin-top: 32px;" class="setting-row">
+            <p class="description" data-i18n="options_display_defaults_desc" style="margin-top: 16px;">ここでのスライダー値は「初期値」として設定記憶のないサイトに適用されます。サイト別の調整はツールバーのポップアップで行ないます。</p>
+
+            <div style="margin-top: 16px;" class="setting-row">
                 <div class="setting-item setting-half">
                     <label for="ruby-size" data-i18n-template="options_ruby_size">ルビサイズ: <span id="ruby-size-value">50</span>%</label>
                     <input type="range" id="ruby-size" min="30" max="100" step="5" value="50">
