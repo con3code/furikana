@@ -1,17 +1,17 @@
 {
   "images" : [
     {
-      "filename" : "背景ふりがな-iOS-Default-1024x1024@1x.png",
+      "filename" : "icon-inapp-512.png",
       "idiom" : "universal",
       "scale" : "1x"
     },
     {
-      "filename" : "背景ふりがな-iOS-Default-1024x1024@1x 1.png",
+      "filename" : "icon-inapp-1024.png",
       "idiom" : "universal",
       "scale" : "2x"
     },
     {
-      "filename" : "背景ふりがな-iOS-Default-1024x1024@1x 2.png",
+      "filename" : "icon-inapp-1536.png",
       "idiom" : "universal",
       "scale" : "3x"
     }
