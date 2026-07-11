@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>るびポン — Webページの漢字に、ふりがな。</title>
+<meta name="description" content="るびポンは、日本語Webページの漢字にふりがな（ルビ）を表示するブラウザ拡張機能です。解析はすべて端末内。Safari版とChrome版があります。">
+<link rel="icon" type="image/png" href="assets/icon-256.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  color-scheme: light;
+  --coral1: #ff9a3d;
+  --coral2: #ff5f4e;
+  --coral3: #f04a52;
+  --ink: #33302e;
+  --ink-soft: #6b6560;
+  --bg: #fffdf9;
+  --bg-soft: #fff4e8;
+  --card: #ffffff;
+  --line: #f0e4d8;
+  --round: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", sans-serif;
+  --body: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Segoe UI", "Yu Gothic", sans-serif;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body { font-family: var(--body); color: var(--ink); background: var(--bg); line-height: 1.8; }
+img { max-width: 100%; }
+a { color: var(--coral3); }
+
+.wrap { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+/* ヘッダー */
+header {
+  position: sticky; top: 0; z-index: 10;
+  background: rgba(255,253,249,.9); backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--line);
+}
+.nav { display: flex; align-items: center; gap: 12px; padding: 12px 0; }
+.nav img { width: 40px; height: 40px; border-radius: 9px; }
+.nav .name { font-family: var(--round); font-weight: 900; font-size: 22px; }
+.nav .spacer { flex: 1; }
+.nav a.ghost { font-size: 14px; color: var(--ink-soft); text-decoration: none; }
+.nav a.ghost:hover { color: var(--coral3); }
+
+/* ヒーロー */
+.hero {
+  text-align: center; padding: 72px 0 64px;
+  background:
+    radial-gradient(900px 420px at 50% -140px, var(--bg-soft) 0%, rgba(255,244,232,0) 70%),
+    var(--bg);
+}
+.hero .icon { width: 120px; height: 120px; border-radius: 27px;
+  box-shadow: 0 18px 44px rgba(240,74,82,.28); }
+.hero h1 {
+  font-family: var(--round); font-weight: 900;
+  font-size: clamp(34px, 6vw, 56px); line-height: 1.35; margin-top: 28px;
+  letter-spacing: .02em;
+}
+.hero h1 .grad {
+  background: linear-gradient(120deg, var(--coral1), var(--coral3));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.hero .sub { margin-top: 14px; font-size: clamp(15px, 2.4vw, 18px); color: var(--ink-soft); }
+
+/* ヒーローの体験デモ */
+.try {
+  margin: 40px auto 0; max-width: 640px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 24px;
+  padding: 30px 28px 26px; box-shadow: 0 14px 40px rgba(190,140,90,.12);
+}
+.try .sentence {
+  font-size: clamp(22px, 4.4vw, 30px); font-weight: 600; line-height: 2.4;
+}
+.try ruby rt {
+  font-size: 0.42em; color: var(--coral3); font-weight: 700;
+  opacity: 0; transform: translateY(4px);
+  transition: opacity .5s ease, transform .5s ease;
+}
+.try.on ruby rt { opacity: 1; transform: translateY(0); }
+.try .hint { font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
+.btn {
+  display: inline-block; border: none; cursor: pointer; text-decoration: none;
+  font-family: var(--round); font-weight: 700; font-size: 17px;
+  padding: 14px 34px; border-radius: 999px; color: #fff;
+  background: linear-gradient(120deg, var(--coral1), var(--coral3));
+  box-shadow: 0 10px 24px rgba(240,74,82,.35);
+  transition: transform .15s ease, box-shadow .15s ease;
+  margin-top: 18px;
+}
+.btn:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(240,74,82,.4); }
+.btn:active { transform: translateY(0); }
+
+.stores { margin-top: 34px; display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+.store-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  border: 1.5px solid var(--line); border-radius: 12px; padding: 10px 18px;
+  font-size: 14px; font-weight: 600; color: var(--ink-soft);
+  background: var(--card); text-decoration: none;
+}
+.store-badge small { font-weight: 500; color: #b0a89f; }
+
+/* セクション共通 */
+section { padding: 72px 0; }
+section.alt { background: var(--bg-soft); }
+h2 {
+  font-family: var(--round); font-weight: 900; text-align: center;
+  font-size: clamp(24px, 4vw, 34px); margin-bottom: 12px;
+}
+.lead { text-align: center; color: var(--ink-soft); margin-bottom: 44px; }
+
+/* 機能カード */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 18px; }
+.card {
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px;
+  padding: 24px 22px;
+}
+.card .emoji { font-size: 30px; }
+.card h3 { font-family: var(--round); font-weight: 700; font-size: 17px; margin: 10px 0 6px; }
+.card p { font-size: 14px; color: var(--ink-soft); }
+
+/* 表示モード比較 */
+.modes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 18px; }
+.mode {
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px;
+  text-align: center;
+}
+.mode h3 { font-family: var(--round); font-weight: 700; font-size: 16px; margin-bottom: 16px; }
+.mode .demo { font-size: 26px; font-weight: 600; line-height: 2.6; }
+.mode .demo ruby rt { font-size: .42em; color: var(--coral3); font-weight: 700; }
+.mode .demo.reverse ruby { display: inline-block; font-size: .5em; line-height: 1; vertical-align: baseline; }
+.mode .demo.reverse ruby rt { display: block; font-size: 2em; line-height: 1.1; margin-top: 2px; color: var(--ink); }
+.mode .demo.reverse ruby rb-x, .mode .demo.reverse ruby .base { color: var(--coral3); }
+.mode p { font-size: 13px; color: var(--ink-soft); margin-top: 12px; }
+
+/* 使い方 */
+.steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; counter-reset: step; }
+.step {
+  background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 24px 22px;
+  position: relative;
+}
+.step::before {
+  counter-increment: step; content: counter(step);
+  font-family: var(--round); font-weight: 900; font-size: 15px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 50%;
+  background: linear-gradient(120deg, var(--coral1), var(--coral3)); color: #fff;
+  margin-bottom: 10px;
+}
+.step h3 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+.step p { font-size: 13.5px; color: var(--ink-soft); }
+
+/* 信頼セクション */
+.trust { max-width: 760px; margin: 0 auto; }
+.trust-item { border-bottom: 1px solid var(--line); padding: 26px 4px; }
+.trust-item h3 { font-family: var(--round); font-weight: 700; font-size: 18px; margin-bottom: 10px; }
+.trust-item h3 .mark { color: var(--coral3); margin-right: 8px; }
+.trust-item p, .trust-item li { font-size: 14.5px; color: var(--ink-soft); }
+.trust-item ul { padding-left: 1.4em; margin-top: 6px; }
+.trust-item code { background: var(--bg-soft); border-radius: 6px; padding: 1px 6px; font-size: 13px; }
+
+/* FAQ */
+details {
+  background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+  padding: 16px 20px; margin-bottom: 12px; max-width: 760px; margin-left: auto; margin-right: auto;
+}
+summary { cursor: pointer; font-weight: 700; font-size: 15px; }
+details p { margin-top: 10px; font-size: 14px; color: var(--ink-soft); }
+
+/* フッター */
+footer { border-top: 1px solid var(--line); padding: 40px 0 60px; text-align: center; }
+footer .foot-icon { width: 56px; height: 56px; border-radius: 13px; opacity: .95; }
+footer p { font-size: 13px; color: var(--ink-soft); margin-top: 10px; }
+footer .links { margin-top: 8px; font-size: 13px; }
+footer .links a { margin: 0 10px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <img src="assets/icon-256.png" alt="るびポンのアイコン">
+    <span class="name">るびポン</span>
+    <span class="spacer"></span>
+    <a class="ghost" href="#features">できること</a>
+    <a class="ghost" href="#trust" style="margin-left:16px">しくみと安心</a>
+  </div>
+</header>
+
+<!-- ヒーロー -->
+<div class="hero">
+  <div class="wrap">
+    <img class="icon" src="assets/icon-1024.png" alt="るびポン アプリアイコン">
+    <h1>Webページの<ruby>漢字<rt style="color:#f04a52;font-weight:700">かんじ</rt></ruby>に、<br><span class="grad">ふりがな。</span></h1>
+    <p class="sub">るびポンは、いま見ているページにそのまま「よみがな」を付ける<br>Safari / Chrome のブラウザ拡張機能です。</p>
+
+    <div class="try" id="try">
+      <p class="sentence">
+        <ruby>難<rt>むずか</rt></ruby>しい<ruby>漢字<rt>かんじ</rt></ruby>も、<ruby>今日<rt>きょう</rt></ruby>から<ruby>読<rt>よ</rt></ruby>める。
+      </p>
+      <p class="hint">↓ ボタンを押すと、るびポンの動きを体験できます</p>
+      <button class="btn" id="tryBtn" onclick="toggleTry()">ふりがなを表示</button>
+    </div>
+
+    <div class="stores">
+      <a class="store-badge" href="#">🍎 App Store <small>（近日公開）</small></a>
+      <a class="store-badge" href="#">🌐 Chrome ウェブストア <small>（近日公開）</small></a>
+    </div>
+  </div>
+</div>
+
+<!-- 機能 -->
+<section id="features">
+  <div class="wrap">
+    <h2>できること</h2>
+    <p class="lead">ニュースも、図鑑も、お知らせも。「そのままのページ」が読みやすくなります。</p>
+    <div class="cards">
+      <div class="card"><div class="emoji">👆</div>
+        <h3>ワンタップで表示</h3>
+        <p>ツールバーのボタンを押すだけ。ページを開いたら自動で表示する設定もできます。</p></div>
+      <div class="card"><div class="emoji">📚</div>
+        <h3>選べる解析辞書</h3>
+        <p>軽快なシステム辞書（Safari）、語彙の充実したIPA辞書、豊富な語数のSudachi辞書を切り替えられます。</p></div>
+      <div class="card"><div class="emoji">🎯</div>
+        <h3>読みまちがいを自動補正</h3>
+        <p>「1月1日」「3階」「2泊3日」のような日付・助数詞の読み分けを、250以上の補正ルールで自動修正します。</p></div>
+      <div class="card"><div class="emoji">📝</div>
+        <h3>ユーザー辞書</h3>
+        <p>人名や専門用語など、思いどおりの読みにしたい言葉を自分で登録できます。</p></div>
+      <div class="card"><div class="emoji">🎚️</div>
+        <h3>サイトごとに最適化</h3>
+        <p>ルビの大きさや行間をスライダーで調整。よく見るサイトごとに設定を自動で覚えます（最大100サイト）。</p></div>
+      <div class="card"><div class="emoji">🔒</div>
+        <h3>ぜんぶ端末の中で</h3>
+        <p>読みの解析はすべて端末内で完結。見ているページの内容が外部に送られることはありません。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 表示モード -->
+<section class="alt">
+  <div class="wrap">
+    <h2>ふたつの表示モード</h2>
+    <p class="lead">読む人の段階に合わせて、ふりがなの「主役」を選べます。</p>
+    <div class="modes">
+      <div class="mode">
+        <h3>通常モード</h3>
+        <p class="demo"><ruby>東京<rt>とうきょう</rt></ruby>タワーに<ruby>行<rt>い</rt></ruby>きました。</p>
+        <p>漢字の上に小さくふりがな。ふつうの本と同じ、いちばん読みなれた形です。</p>
+      </div>
+      <div class="mode">
+        <h3>ひらがなメインモード</h3>
+        <p class="demo reverse"><ruby><span class="base">東京</span><rt>とうきょう</rt></ruby>タワーに<ruby><span class="base">行</span><rt>い</rt></ruby>きました。</p>
+        <p>ひらがなが主役、漢字は小さく上に。漢字を習う前のお子さまでもページが読めます。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 使い方 -->
+<section>
+  <div class="wrap">
+    <h2>使い方は 3 ステップ</h2>
+    <p class="lead">むずかしい設定はありません。</p>
+    <div class="steps">
+      <div class="step"><h3>拡張機能を有効にする</h3>
+        <p>Safari: 設定 &gt; アプリ &gt; Safari &gt; 機能拡張で「るびポン」をオン。<br>Chrome: ウェブストアから追加するだけ。</p></div>
+      <div class="step"><h3>日本語のページを開く</h3>
+        <p>ニュース、辞典、学校のお知らせ…。ふりがなを付けたいページをふつうに開きます。</p></div>
+      <div class="step"><h3>「ふりがなを表示」を押す</h3>
+        <p>ツールバーのるびポンボタンからワンタップ。次からは自動表示にもできます。</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 信頼セクション -->
+<section class="alt" id="trust">
+  <div class="wrap">
+    <h2>しくみと安心のはなし</h2>
+    <p class="lead">「なぜ安心して使えるのか」を、すこし詳しくご紹介します。</p>
+    <div class="trust">
+
+      <div class="trust-item">
+        <h3><span class="mark">■</span>解析は 100% 端末内。外部送信はありません</h3>
+        <p>るびポンは、日本語を単語に分けて読みを推定する「形態素解析」という技術を使っています。この処理に必要な辞書とプログラムはすべて拡張機能の中に同梱されており、<strong>閲覧中のページの内容・URL・入力内容が外部のサーバーへ送信されることは一切ありません</strong>。アクセス解析や広告も含まれていません。お子さまの端末や学校の端末でも安心してお使いいただけます。</p>
+      </div>
+
+      <div class="trust-item">
+        <h3><span class="mark">■</span>読みの正確さへのこだわり</h3>
+        <p>日本語の読みには「1月1日（ついたち…ではなく、がんじつ？）」「3階（さんがい）」「2泊3日（にはくみっか）」のような揺れがつきものです。るびポンは形態素解析の結果に対して、日付・助数詞・慣用的な読みを整える<strong>250以上の補正ルール</strong>を重ねて適用しています。それでも読みまちがいはゼロにはなりません。気になる言葉は<strong>ユーザー辞書</strong>に登録すれば、いつでも自分の読みで表示できます。</p>
+      </div>
+
+      <div class="trust-item">
+        <h3><span class="mark">■</span>使っている技術（オープンソース）</h3>
+        <ul>
+          <li>形態素解析: <code>kuromoji.js</code>（IPA辞書）/ <code>Sudachi</code>（WASM版・ワークス徳島NLP研究所の辞書）/ Apple の言語解析フレームワーク（Safari版のシステム辞書）</li>
+          <li>ふりがなの表示: HTML標準の <code>&lt;ruby&gt;</code> 要素 — Webの標準技術なので、ページのレイアウトを壊しにくい設計です</li>
+          <li>アイコンの書体: M PLUS Rounded 1c（SIL Open Font License）</li>
+        </ul>
+      </div>
+
+      <div class="trust-item">
+        <h3><span class="mark">■</span>対応環境</h3>
+        <ul>
+          <li><strong>Safari版</strong>: iPhone / iPad（iOS 15.4以降）。App Storeで配信予定</li>
+          <li><strong>Chrome版</strong>: Chrome（Manifest V3対応版）。Chromeウェブストアで配信予定</li>
+        </ul>
+      </div>
+
+      <div class="trust-item" style="border-bottom:none">
+        <h3><span class="mark">■</span>開発について</h3>
+        <p>るびポンは、漢字の読みにつまずくすべての人の「読みたい」を支えるために、教育現場の視点から開発されています。開発の記録・技術資料は <a href="https://github.com/con3code/furikana" target="_blank" rel="noopener">GitHub</a> で公開しています。不具合のご報告や読み補正のご要望も歓迎します。</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section>
+  <div class="wrap">
+    <h2>よくある質問</h2>
+    <p class="lead"></p>
+    <details>
+      <summary>無料で使えますか？</summary>
+      <p>はい、無料です。アプリ内課金や広告もありません。</p>
+    </details>
+    <details>
+      <summary>どんなページでも使えますか？</summary>
+      <p>日本語のテキストを含むほとんどのWebページで動作します。動的に更新されるページ（SNSやライブブログ等）にも追従します。一部の特殊なページ（画像化された文字など）にはふりがなを付けられません。</p>
+    </details>
+    <details>
+      <summary>ふりがなが間違っていることはありますか？</summary>
+      <p>自動解析のため、まれにあります。日付や助数詞など間違いやすいパターンは補正ルールで自動修正しているほか、ユーザー辞書で任意の言葉の読みを固定できます。</p>
+    </details>
+    <details>
+      <summary>子どもの端末に入れても大丈夫？</summary>
+      <p>はい。ページ内容の外部送信・広告・課金は一切なく、解析はすべて端末内で行われます。</p>
+    </details>
+    <details>
+      <summary>ローマ字表示はできますか？</summary>
+      <p>できます。設定で読み仮名の種類を「ローマ字」に切り替えられるので、日本語学習の初期段階の方にも使えます。</p>
+    </details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <img class="foot-icon" src="assets/icon-256.png" alt="るびポン">
+    <p>るびポン — Webページの漢字に、ふりがな。</p>
+    <div class="links">
+      <a href="https://github.com/con3code/furikana" target="_blank" rel="noopener">GitHub</a>
+    </div>
+    <p style="margin-top:16px; font-size:12px; color:#b0a89f">© 2026 RubiPon Project</p>
+  </div>
+</footer>
+
+<script>
+function toggleTry() {
+  const box = document.getElementById('try');
+  const btn = document.getElementById('tryBtn');
+  box.classList.toggle('on');
+  btn.textContent = box.classList.contains('on') ? 'ふりがなを消す' : 'ふりがなを表示';
+}
+</script>
+
+</body>
+</html>
