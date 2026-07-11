@@ -241,7 +241,7 @@ const requestQueue = new RequestQueue(3, 75);
 // 同一親要素が LOOP_GUARD_WINDOW_MS 内に LOOP_GUARD_MAX_REPROCESS 回を超えて
 // 再処理されたら、その要素を以降のスキャン対象から除外する
 const LOOP_GUARD_MAX_REPROCESS = 3;
-const LOOP_GUARD_WINDOW_MS = 30000;
+const LOOP_GUARD_WINDOW_MS = 60000;
 // mutation起因の再スキャンが高頻度で続く場合のグローバルバックオフ
 const MUTATION_BACKOFF_THRESHOLD = 5;      // ウィンドウ内の許容スキャン回数
 const MUTATION_BACKOFF_WINDOW_MS = 10000;
