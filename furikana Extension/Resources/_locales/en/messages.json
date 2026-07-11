@@ -176,6 +176,14 @@
         "message": "No active tab found",
         "description": "Popup status: no tab"
     },
+    "popup_status_unavailable": {
+        "message": "Not available on this page",
+        "description": "Popup status: content script unavailable"
+    },
+    "popup_status_reload": {
+        "message": "Reload the page and try again",
+        "description": "Popup status: content script unavailable"
+    },
     "popup_status_shown": {
         "message": "Furigana shown",
         "description": "Popup status: furigana enabled"

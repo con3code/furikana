@@ -42,6 +42,19 @@ async function getCurrentTab() {
     return tabs[0];
 }
 
+// 対象タブに content script が存在しない場合の接続エラーかどうか
+// （chrome://等の制限ページ、拡張の再読み込み前から開いていたタブ等で発生する想定内の失敗）
+function isNoReceiverError(error) {
+    const msg = String((error && error.message) || error).toLowerCase();
+    return msg.includes('could not establish connection')
+        || msg.includes('receiving end does not exist');
+}
+
+// content script を注入できないURLかどうか（chrome:// 、ウェブストア、about: 等）
+function isRestrictedUrl(url) {
+    return !url || !/^https?:/i.test(url);
+}
+
 // --- サイト別表示スタイルの記憶 ---
 // スライダー操作時に、アクティブタブのホスト名単位で6値のスナップショットを保存する。
 // 上限100件、超過時は最終更新が古いものから削除（LRU）。
@@ -132,8 +145,20 @@ async function toggleFurigana() {
             updateStatus(t('popup_status_failed', '処理に失敗しました'), 'error');
         }
     } catch (error) {
-        console.error('Toggle failed:', error);
-        updateStatus(t('popup_status_error', 'エラーが発生しました'), 'error');
+        if (isNoReceiverError(error)) {
+            // content script がいないタブ: エラーではなく案内を表示
+            // （console.error にしない — 拡張機能管理画面のエラー一覧に蓄積されるため）
+            console.log('[Furikana] Content script not available on this tab');
+            updateStatus(
+                isRestrictedUrl(tab.url)
+                    ? t('popup_status_unavailable', 'このページでは使用できません')
+                    : t('popup_status_reload', 'ページを再読み込みしてからお試しください'),
+                'error'
+            );
+        } else {
+            console.error('Toggle failed:', error);
+            updateStatus(t('popup_status_error', 'エラーが発生しました'), 'error');
+        }
     }
 }
 
@@ -266,8 +291,15 @@ async function fetchCurrentStatus() {
             console.log('[Furikana] Current status:', isEnabled);
         }
     } catch (error) {
-        console.error('[Furikana] Failed to fetch status:', error);
-        // エラーの場合はデフォルト状態を維持
+        // content script がいないタブでは想定内 → エラー記録しない（デフォルト状態を維持）
+        if (isNoReceiverError(error)) {
+            console.log('[Furikana] Content script not available; using default status');
+            if (isRestrictedUrl(tab.url)) {
+                updateStatus(t('popup_status_unavailable', 'このページでは使用できません'), 'info');
+            }
+        } else {
+            console.error('[Furikana] Failed to fetch status:', error);
+        }
     }
 }
 

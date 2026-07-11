@@ -242,7 +242,9 @@ try {
             const iconExt = FK_IS_CHROMIUM ? 'png' : 'svg';
             const icon = request.enabled ? `images/toolbar-icon_on.${iconExt}` : `images/toolbar-icon_off.${iconExt}`;
             if (sender.tab && sender.tab.id != null) {
-                browser.action.setIcon({ tabId: sender.tab.id, path: icon });
+                // タブが閉じられた直後などの失敗を握りつぶす（エラー一覧への蓄積防止）
+                Promise.resolve(browser.action.setIcon({ tabId: sender.tab.id, path: icon }))
+                    .catch(() => {});
             }
             return false;
         }

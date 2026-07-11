@@ -176,6 +176,14 @@
         "message": "タブが見つかりません",
         "description": "Popup status: no tab"
     },
+    "popup_status_unavailable": {
+        "message": "このページでは使用できません",
+        "description": "Popup status: content script unavailable"
+    },
+    "popup_status_reload": {
+        "message": "ページを再読み込みしてからお試しください",
+        "description": "Popup status: content script unavailable"
+    },
     "popup_status_shown": {
         "message": "ふりがなを表示しました",
         "description": "Popup status: furigana enabled"
