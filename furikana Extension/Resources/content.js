@@ -410,7 +410,9 @@ class VisibleTextProcessor {
             );
             this.mutationScanCount = 0;
             this.mutationWindowStart = now;
-            console.warn(`[Furikana] Mutation backoff: rescan delayed by ${this.mutationBackoffMs}ms`);
+            // 高頻度更新SPA（Google News等）では正常動作 — warn だと拡張機能管理画面の
+            // エラー一覧に蓄積されるため log に留める
+            console.log(`[Furikana] Mutation backoff: rescan delayed by ${this.mutationBackoffMs}ms`);
         }
         return this.scanDelay + this.mutationBackoffMs;
     }
